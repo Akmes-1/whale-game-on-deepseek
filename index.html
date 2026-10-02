@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>鲸鱼搓澡店 · Whale Spa</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+  <canvas id="stage"></canvas>
+
+  <!-- ------------------------------------------------------------------ HUD -->
+  <div class="hud">
+    <div class="hud-left">
+      <div class="pill"><span class="k">第</span><b id="round">1</b><span class="k">关</span></div>
+      <div class="pill"><span class="k">剩</span><b id="left">0</b><span class="k">个藤壶</span></div>
+      <div class="pill"><span class="k">刀</span><b id="knifeName">生锈小刀</b></div>
+      <div class="pill combo"><b id="combo"></b></div>
+    </div>
+    <div class="hud-right">
+      <div class="airwrap" title="氧气：用完这轮就结束">
+        <span class="airlabel">氧气</span>
+        <div class="airbar"><i id="airFill"></i></div>
+        <b id="airSecs">0s</b>
+      </div>
+      <div class="coinbox"><span class="coin">🪙</span><b id="coins">0</b></div>
+      <button id="btnDev" class="icobtn hidden" title="开发者控制台（只在 ?dev=1 时出现）">🛠</button>
+      <button id="btnFx" class="icobtn" title="光污染模式：点击切换 关闭 / 标准 / 拉满">✨</button>
+      <button id="btnSound" class="icobtn" title="音效开关">🔇</button>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------------ title -->
+  <div id="title" class="overlay show">
+    <div class="panel">
+      <div class="alertbar">
+        <span class="alertdot"></span>
+        <span><b>系统告警</b> · 检测到<em>赛博藤壶入侵</em></span>
+      </div>
+      <img id="portrait" alt="鲸鱼女仆" class="portrait">
+      <h1>鲸鱼搓澡店</h1>
+      <p class="tag">大肥鱼被赛博藤壶寄生了，快帮它清干净！</p>
+      <p class="brief">
+        一群赛博藤壶不知从哪冒出来，爬满了大肥鱼的背。<br>
+        它们吸它的血、还让它痒到睡不着，而且越繁殖越多。<br>
+        你手上只有一把生锈小刀——但每切掉一个藤壶就有金币，金币能换更狠的武器。
+      </p>
+      <ul class="howto">
+        <li><b>武器站在轨道上自己左右移动</b>——位置不用你管</li>
+        <li><b>鼠标只决定朝向</b>：武器永远朝着你的鼠标方向发射</li>
+        <li>所以要<b>挑时机</b>：等武器滑到能打中藤壶的位置再点</li>
+        <li>每切掉一个藤壶 = <b>金币</b>，连击还有额外奖励</li>
+        <li>金币可以换<b>更大的刀、直刺贯穿的剑、还有带特效的特质</b></li>
+        <li>整只鲸鱼清干净后，它会变身道谢，然后离开，下一条鲸鱼接着来</li>
+      </ul>
+      <div id="saveInfo" class="saveinfo"></div>
+      <div class="fxrow">
+        <span class="fxlab">光污染模式</span>
+        <button id="btnFxTitle" class="fxbtn" data-fx="off">关闭</button>
+        <button id="btnFxTitle2" class="fxbtn" data-fx="normal">标准</button>
+        <button id="btnFxTitle3" class="fxbtn" data-fx="max">✨ 拉满</button>
+        <span id="fxInfo" class="fxnow">光污染：拉满</span>
+      </div>
+      <div class="fxrow">
+        <button id="btnCodexTitle" class="fxbtn">📖 图鉴</button>
+        <button id="btnAchvTitle" class="fxbtn">🏆 成就</button>
+        <span id="bestInfo" class="fxnow">本机最高分：0</span>
+      </div>
+      <button id="btnContinue" class="primary hidden">继续上次的进度</button>
+      <button id="btnStart" class="primary">开始救援</button>
+      <button id="btnWipe" class="ghost small hidden">🗑 删除存档（全部重置）</button>
+      <p class="hint">进度会自动保存在本机；换浏览器或清缓存会丢失。</p>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------------ codex -->
+  <div id="codex" class="overlay">
+    <div class="panel wide">
+      <header class="shophead">
+        <h2>图鉴</h2>
+        <div class="wallet" id="codexWallet">🪙 <b id="codexCoins">0</b></div>
+      </header>
+      <div class="codectabs">
+        <button id="tab_types" class="fxbtn on" data-tab="types">藤壶图鉴</button>
+        <button id="tab_items" class="fxbtn" data-tab="items">掉落物</button>
+        <button id="tab_achv" class="fxbtn" data-tab="achv">成就</button>
+        <button id="tab_hall" class="fxbtn" data-tab="hall">🏛 名人堂</button>
+      </div>
+      <div class="shopscroll" id="codexBody"></div>
+      <div class="shopfoot">
+        <button id="btnCodexClose" class="primary">返回</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------------ report -->
+  <div id="report" class="overlay">
+    <div class="panel report-panel">
+      <h2>战绩图</h2>
+      <p class="reporttip">保存下来发出去，让它们看看谁才是正统。</p>
+      <div id="reportShot" class="reportshot"></div>
+      <div class="fxrow">
+        <a id="reportSave" class="fxbtn" download="whale-report.png">💾 保存图片</a>
+        <button id="btnReportClose" class="fxbtn">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------------ ending -->
+  <div id="ending" class="overlay">
+    <div class="panel ending-panel">
+      <div class="endingbadge">入侵已压制</div>
+      <h2 id="endingTitle">评论区干净了</h2>
+      <div class="endingtext" id="endingText"></div>
+      <div class="endingstats" id="endingStats"></div>
+      <p class="endingunlock" id="endingUnlock"></p>
+      <button id="btnEnding" class="primary">继续 →</button>
+    </div>
+  </div>
+
+  <!-- 成就 / 收集 弹条 -->
+  <div id="toast" class="toast"></div>
+
+  <!-- ------------------------------------------------------------------ story -->
+  <div id="story" class="overlay">
+    <div class="panel story-panel">
+      <div class="storyhead">
+        <span class="storywave" id="storyWave">第 5 波</span>
+        <span class="storykind">大肥鱼 · 通讯接入</span>
+      </div>
+      <h2 id="storyTitle">标题</h2>
+      <p class="storytext" id="storyText">正文</p>
+      <button id="btnStory" class="primary">继续清理 →</button>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------------ shop -->
+  <div id="shop" class="overlay">
+    <div class="panel wide">
+      <header class="shophead">
+        <h2>结算 · 换更好的武器</h2>
+        <div class="wallet">🪙 <b id="shopCoins">0</b></div>
+      </header>
+
+      <div class="invasion" id="invasion">
+        <div class="invlabel">
+          <span>🧬 赛博藤壶入侵清除度</span>
+          <b id="invPct">0%</b>
+        </div>
+        <div class="invbar"><i id="invFill"></i></div>
+        <div class="invsub" id="invSub">已清理 0 波</div>
+      </div>
+
+      <div class="shopscroll" id="shopScroll">
+        <h3>🔥 热搜榜（本机实时战况）</h3>
+        <div id="trendList" class="trend"></div>
+
+        <h3>🎰 抽卡 · 穿刺武器唯一出处</h3>
+        <p class="gachanote">
+          <b>剑 / 电锯 / 一只更大的藤壶</b>这类能贯穿的武器，商店不卖，<b>只能抽</b>。<br>
+          SSR 只会出穿刺武器，绝不会抽到普通刀。连抽 20 次没出 SSR 必出一次。
+        </p>
+        <div class="gacharow">
+          <button id="btnGacha1" class="fxbtn">单抽 · 🪙150</button>
+          <button id="btnGacha10" class="fxbtn gold">十连 · 🪙1350<span class="sub2">必出 SR 以上</span></button>
+        </div>
+        <div id="gachaPity" class="gachapity"></div>
+        <div id="gachaLog" class="gachalog"></div>
+
+        <h3>武器（商店只有这些，都是不贯穿的）</h3>
+        <div id="knifeList" class="cards"></div>
+
+        <h3>特质（买了就一直有，带专属特效）</h3>
+        <div id="perkList" class="cards perks"></div>
+
+        <h3>道具</h3>
+        <div id="upgradeList" class="cards upgrades"></div>
+      </div>
+      <p class="scrollhint">↑↓ 滚动查看更多　·　鼠标滚轮也可以</p>
+
+      <p id="saveState" class="savestate"></p>
+      <div class="shopfoot">
+        <button id="btnResume" class="primary">下一条鲸鱼 →</button>
+        <button id="btnCodex" class="ghost">📖 图鉴</button>
+        <button id="btnReport" class="ghost">📸 战绩图</button>
+        <button id="btnRestart" class="ghost">重新开始</button>
+        <button id="btnWipe2" class="ghost">🗑 删除存档（全部重置）</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/rules.js"></script>
+<script src="js/lore.js"></script>
+<script src="js/save.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

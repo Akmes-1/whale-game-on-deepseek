@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>开发者控制台 · 鲸鱼搓澡店</title>
+<style>
+  :root { --line: rgba(140,180,255,.22); --gold: #FFD45E; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 26px 22px 80px;
+    background: linear-gradient(180deg, #0A1730, #061020);
+    color: #E6EFFF; font: 14px/1.75 "Segoe UI", system-ui, "Microsoft YaHei", sans-serif;
+  }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  h2 { margin: 26px 0 10px; font-size: 16px; color: #A9C8FF; border-left: 3px solid #4D6BFE; padding-left: 10px; }
+  .sub { color: #7E97BC; font-size: 13px; margin-bottom: 18px; }
+  .card {
+    background: rgba(16,34,64,.72); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 14px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+  button {
+    background: linear-gradient(180deg, rgba(70,110,200,.95), rgba(40,70,150,.95));
+    border: 1px solid rgba(150,190,255,.45); color: #EAF2FF;
+    border-radius: 9px; padding: 8px 14px; font-size: 13.5px; cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { filter: brightness(1.18); }
+  button.gold { background: linear-gradient(180deg, #E8C05A, #C79A2E); color: #2A1E00; font-weight: 700; border-color: #FFE9A8; }
+  button.red { background: linear-gradient(180deg, #C24A4A, #8E2E2E); border-color: #FF9B9B; }
+  button.ghost { background: rgba(8,22,44,.6); }
+  input[type=number], input[type=text], select {
+    background: rgba(6,16,34,.85); border: 1px solid var(--line); color: #EAF2FF;
+    border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 13.5px;
+  }
+  input[type=number] { width: 92px; }
+  input[type=text] { width: 120px; }
+  label.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+    background: rgba(8,22,44,.5); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  label.chk input { accent-color: #4D6BFE; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+  .itemrow { display: flex; align-items: center; gap: 8px; font-size: 13px;
+    background: rgba(8,22,44,.5); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .itemrow span.n { flex: 1; }
+  .status { position: fixed; right: 16px; bottom: 16px; max-width: 420px;
+    background: rgba(20,46,30,.95); border: 1px solid rgba(120,230,160,.5);
+    border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #CFF5DD;
+    opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .status.on { opacity: 1; }
+  .status.bad { background: rgba(52,20,20,.95); border-color: rgba(255,140,140,.5); color: #FFD6D6; }
+  pre { background: rgba(4,10,22,.9); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; font-size: 12px; color: #9FC4F5; overflow: auto; max-height: 320px; }
+  a { color: #8FC0FF; }
+  .hint { font-size: 12.5px; color: #7E97BC; margin-top: 6px; }
+  .warn { font-size: 13px; color: #FFC98A; margin-bottom: 8px; }
+  .kv { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .kv > b { width: 96px; color: #A9C8FF; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>🛠 开发者控制台</h1>
+<div class="sub">
+  鲸鱼搓澡店 · 调试页。所有改动直接写进本机存档（和游戏同一个 localStorage），
+  改完回游戏刷新即可生效。<b>玩家不需要这个页面。</b>
+</div>
+
+<div class="card">
+  <div class="kv"><b>存档状态</b><span id="saveStatus">读取中…</span></div>
+  <div class="kv"><b>关键数值</b><span id="saveSummary">—</span></div>
+  <div class="row">
+    <button class="ghost" onclick="location.href='index.html'">▶ 打开游戏</button>
+    <button class="ghost" onclick="location.href='index.html?dev=1'">▶ 打开游戏（显示 DEV 按钮）</button>
+    <button class="ghost" id="btnReload">↻ 重新载入存档</button>
+    <button class="ghost" id="btnExport">⬇ 导出 JSON</button>
+    <button class="ghost" id="btnImport">⬆ 导入 JSON</button>
+  </div>
+  <div class="hint">存档键：<code id="saveKey">—</code></div>
+</div>
+
+<h2>一键操作</h2>
+<div class="card">
+  <div class="row">
+    <button class="gold" id="btnUnlockAllAchv">🏆 解锁全部成就</button>
+    <button class="gold" id="btnFillCodex">📖 图鉴全收录</button>
+    <button class="gold" id="btnFillItems">🎒 掉落物全收集</button>
+    <button class="gold" id="btnAllWeapons">⚔ 解锁全部武器</button>
+    <button class="gold" id="btnMaxUpgrades">🔧 道具全满级</button>
+    <button class="gold" id="btnAllPerks">✨ 特质全解锁</button>
+    <button class="gold" id="btnRich">🪙 给 100000 金币</button>
+    <button class="gold" id="btnGodMode">🧪 一键满配（上面全部）</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="ghost" id="btnResetAchv">清空成就</button>
+    <button class="ghost" id="btnResetCodex">清空图鉴</button>
+    <button class="ghost" id="btnResetItems">清空掉落物</button>
+    <button class="ghost" id="btnResetStory">重置剧情（可重看）</button>
+    <button class="red" id="btnWipe">🗑 删除整个存档</button>
+  </div>
+</div>
+
+<h2>基础数值</h2>
+<div class="card">
+  <div class="grid">
+    <div class="itemrow"><span class="n">金币</span><input type="number" id="f_coins" min="0"></div>
+    <div class="itemrow"><span class="n">本机最高分</span><input type="number" id="f_bestScore" min="0"></div>
+    <div class="itemrow"><span class="n">累计总金币</span><input type="number" id="f_totalCoins" min="0"></div>
+    <div class="itemrow"><span class="n">最高关卡</span><input type="number" id="f_maxRound" min="1"></div>
+    <div class="itemrow"><span class="n">当前武器</span><select id="f_knifeId"></select></div>
+    <div class="itemrow"><span class="n">音效</span><input type="checkbox" id="f_sound"></div>
+    <div class="itemrow"><span class="n">光污染</span>
+      <select id="f_fx">
+        <option value="off">关闭</option>
+        <option value="normal">标准</option>
+        <option value="max">拉满</option>
+      </select>
+    </div>
+    <div class="itemrow"><span class="n">已看剧情（波数，逗号分隔）</span><input type="text" id="f_storySeen" placeholder="5,10,15"></div>
+    <div class="itemrow"><span class="n">已通关（解锁无尽）</span><input type="checkbox" id="f_gameCleared"></div>
+  </div>
+</div>
+
+<h2>道具等级</h2>
+<div class="card"><div class="grid" id="upgrades"></div></div>
+
+<h2>特质</h2>
+<div class="card"><div class="grid" id="perks"></div></div>
+
+<h2>成就（可单独勾选）</h2>
+<div class="card">
+  <div class="row" style="margin-bottom:10px">
+    <button class="ghost" id="achvAll">全选</button>
+    <button class="ghost" id="achvNone">全不选</button>
+  </div>
+  <div class="grid" id="achvList"></div>
+</div>
+
+<h2>藤壶图鉴（设置累计击杀数）</h2>
+<div class="card">
+  <div class="row" style="margin-bottom:10px">
+    <button class="ghost" id="codexAll10">全部设成 10</button>
+    <button class="ghost" id="codexAll0">全部清零</button>
+  </div>
+  <div class="grid" id="codexList"></div>
+</div>
+
+<h2>掉落物（设置数量）</h2>
+<div class="card">
+  <div class="row" style="margin-bottom:10px">
+    <button class="ghost" id="itemsAll3">全部设成 3</button>
+    <button class="ghost" id="itemsAll0">全部清零</button>
+  </div>
+  <div class="grid" id="itemsList"></div>
+</div>
+
+<h2>当前存档 JSON</h2>
+<div class="card"><pre id="jsonView">—</pre></div>
+
+<textarea id="ioBox" style="display:none"></textarea>
+<div class="status" id="status"></div>
+
+<script src="js/rules.js"></script>
+<script src="js/lore.js"></script>
+<script src="js/save.js"></script>
+<script>
+(function () {
+  const R = window.WhaleRules, L = window.WhaleLore, S = window.WhaleSave;
+  let data = null;
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status');
+  let statusTimer = null;
+  function status(msg, bad) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status on' + (bad ? ' bad' : '');
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => { statusEl.className = 'status'; }, 2200);
+  }
+
+  // ---------------- 存档读写 ----------------
+  function freshData() {
+    const r = S.load();
+    if (r.ok) return r.data;
+    // 没有存档就用空档；同时保证所有字段都在
+    const b = S.blank ? S.blank() : {};
+    b.items = b.items || {};
+    b.killedByType = b.killedByType || {};
+    b.achievements = b.achievements || [];
+    b.bestScore = b.bestScore || 0;
+    b.storySeen = b.storySeen || [];
+    b.perks = b.perks || [];
+    b.upgrades = b.upgrades || {};
+    return b;
+  }
+
+  function write(label) {
+    const r = S.save(data);
+    if (!r.ok) { status('写入失败：' + (r.reason || '未知') + '（浏览器可能禁用了本地存储）', true); return false; }
+    status('已写入存档' + (label ? '：' + label : ''));
+    render();
+    return true;
+  }
+
+  function loadAndRender() {
+    data = freshData();
+    render();
+  }
+
+  // ---------------- 渲染 ----------------
+  function render() {
+    if (!data) return;
+    $('saveKey').textContent = S.KEY;
+    const has = S.load().ok;
+    $('saveStatus').textContent = has ? '存在（本机有存档）' : '不存在（点任意按钮会自动创建）';
+    $('saveStatus').style.color = has ? '#9BE7C4' : '#FFC98A';
+    $('saveSummary').textContent =
+      `第 ${data.maxRound} 关 · 🪙${data.coins} · 最高分 ${data.bestScore} · ` +
+      `武器 ${(R.knifeById(data.knifeId) || {}).name || data.knifeId} · ` +
+      `成就 ${(data.achievements || []).length}/${L.ACHIEVEMENTS.length} · ` +
+      `图鉴 ${Object.keys(data.killedByType || {}).length}/${L.TYPES.length} · ` +
+      `掉落物 ${Object.values(data.items || {}).filter(v => v > 0).length}/${L.ITEMS.length}`;
+
+    // 基础字段
+    $('f_coins').value = data.coins || 0;
+    $('f_bestScore').value = data.bestScore || 0;
+    $('f_totalCoins').value = data.totalCoins || 0;
+    $('f_maxRound').value = data.maxRound || 1;
+    $('f_sound').checked = data.sound !== false;
+    $('f_fx').value = data.fx || 'max';
+    $('f_storySeen').value = (data.storySeen || []).join(',');
+    $('f_gameCleared').checked = !!data.gameCleared;
+    const sel = $('f_knifeId');
+    if (!sel.options.length) {
+      for (const k of R.KNIVES) {
+        const o = document.createElement('option');
+        o.value = k.id; o.textContent = k.name + '（🪙' + k.cost + '）';
+        sel.appendChild(o);
+      }
+    }
+    sel.value = data.knifeId || 'rusty';
+
+    // 道具
+    const up = $('upgrades');
+    up.innerHTML = '';
+    for (const u of R.UPGRADES) {
+      const d = document.createElement('div');
+      d.className = 'itemrow';
+      d.innerHTML = `<span class="n">${u.name}（上限 ${u.max}）</span>`;
+      const i = document.createElement('input');
+      i.type = 'number'; i.min = 0; i.max = u.max;
+      i.value = (data.upgrades || {})[u.id] || 0;
+      i.onchange = () => {
+        data.upgrades = data.upgrades || {};
+        data.upgrades[u.id] = Math.max(0, Math.min(u.max, Number(i.value) || 0));
+        write(u.name);
+      };
+      d.appendChild(i);
+      up.appendChild(d);
+    }
+
+    // 特质
+    const pk = $('perks');
+    pk.innerHTML = '';
+    for (const p of R.PERKS) {
+      const lab = document.createElement('label');
+      lab.className = 'chk';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = (data.perks || []).includes(p.id);
+      cb.onchange = () => {
+        data.perks = data.perks || [];
+        if (cb.checked) { if (!data.perks.includes(p.id)) data.perks.push(p.id); }
+        else data.perks = data.perks.filter(x => x !== p.id);
+        write(p.name);
+      };
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(p.name));
+      pk.appendChild(lab);
+    }
+
+    // 成就
+    const al = $('achvList');
+    al.innerHTML = '';
+    for (const a of L.ACHIEVEMENTS) {
+      const lab = document.createElement('label');
+      lab.className = 'chk';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = (data.achievements || []).includes(a.id);
+      cb.onchange = () => {
+        data.achievements = data.achievements || [];
+        if (cb.checked) { if (!data.achievements.includes(a.id)) data.achievements.push(a.id); }
+        else data.achievements = data.achievements.filter(x => x !== a.id);
+        write('成就 ' + a.name);
+      };
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(a.name));
+      lab.title = a.desc;
+      al.appendChild(lab);
+    }
+
+    // 图鉴
+    const cl = $('codexList');
+    cl.innerHTML = '';
+    for (const t of L.TYPES) {
+      const d = document.createElement('div');
+      d.className = 'itemrow';
+      d.innerHTML = `<span class="n">${t.name}</span>`;
+      const i = document.createElement('input');
+      i.type = 'number'; i.min = 0;
+      i.value = (data.killedByType || {})[t.id] || 0;
+      i.onchange = () => {
+        data.killedByType = data.killedByType || {};
+        data.killedByType[t.id] = Math.max(0, Number(i.value) || 0);
+        write('图鉴 ' + t.name);
+      };
+      d.appendChild(i);
+      cl.appendChild(d);
+    }
+
+    // 掉落物
+    const il = $('itemsList');
+    il.innerHTML = '';
+    for (const it of L.ITEMS) {
+      const d = document.createElement('div');
+      d.className = 'itemrow';
+      d.innerHTML = `<span class="n">${it.icon} ${it.name}</span>`;
+      const i = document.createElement('input');
+      i.type = 'number'; i.min = 0;
+      i.value = (data.items || {})[it.id] || 0;
+      i.onchange = () => {
+        data.items = data.items || {};
+        data.items[it.id] = Math.max(0, Number(i.value) || 0);
+        write('掉落物 ' + it.name);
+      };
+      d.appendChild(i);
+      il.appendChild(d);
+    }
+
+    $('jsonView').textContent = JSON.stringify(data, null, 2);
+  }
+
+  // ---------------- 基础字段绑定 ----------------
+  const bind = (id, key, cast, label) => {
+    $(id).onchange = () => {
+      data[key] = cast($(id).value);
+      write(label);
+    };
+  };
+  bind('f_coins', 'coins', v => Math.max(0, Math.round(Number(v) || 0)), '金币');
+  bind('f_bestScore', 'bestScore', v => Math.max(0, Math.round(Number(v) || 0)), '最高分');
+  bind('f_totalCoins', 'totalCoins', v => Math.max(0, Math.round(Number(v) || 0)), '总金币');
+  bind('f_maxRound', 'maxRound', v => Math.max(1, Math.round(Number(v) || 1)), '最高关卡');
+  $('f_knifeId').onchange = () => { data.knifeId = $('f_knifeId').value; write('武器'); };
+  $('f_sound').onchange = () => { data.sound = $('f_sound').checked; write('音效'); };
+  $('f_fx').onchange = () => { data.fx = $('f_fx').value; write('光污染'); };
+  $('f_gameCleared').onchange = () => { data.gameCleared = $('f_gameCleared').checked; write('通关状态'); };
+  $('f_storySeen').onchange = () => {
+    data.storySeen = $('f_storySeen').value.split(',')
+      .map(x => Number(x.trim())).filter(x => isFinite(x) && x > 0);
+    write('剧情');
+  };
+
+  // ---------------- 一键操作 ----------------
+  const on = (id, fn) => { $(id).onclick = fn; };
+
+  on('btnUnlockAllAchv', () => {
+    data.achievements = L.ACHIEVEMENTS.map(a => a.id);
+    write('解锁全部成就（' + data.achievements.length + ' 个）');
+  });
+  on('btnFillCodex', () => {
+    data.killedByType = data.killedByType || {};
+    for (const t of L.TYPES) data.killedByType[t.id] = Math.max(1, data.killedByType[t.id] || 0);
+    write('图鉴全收录');
+  });
+  on('btnFillItems', () => {
+    data.items = data.items || {};
+    for (const i of L.ITEMS) data.items[i.id] = Math.max(1, data.items[i.id] || 0);
+    write('掉落物全收集');
+  });
+  on('btnAllWeapons', () => {
+    const last = R.KNIVES[R.KNIVES.length - 1];
+    data.knifeId = last.id;
+    write('解锁全部武器（当前=' + last.name + '）');
+  });
+  on('btnMaxUpgrades', () => {
+    data.upgrades = data.upgrades || {};
+    for (const u of R.UPGRADES) data.upgrades[u.id] = u.max;
+    write('道具全满级');
+  });
+  on('btnAllPerks', () => {
+    data.perks = R.PERKS.map(p => p.id);
+    write('特质全解锁');
+  });
+  on('btnRich', () => { data.coins = 100000; data.totalCoins = 100000; write('给 100000 金币'); });
+  on('btnGodMode', () => {
+    data.coins = 100000; data.totalCoins = 100000;
+    data.achievements = L.ACHIEVEMENTS.map(a => a.id);
+    data.killedByType = {}; for (const t of L.TYPES) data.killedByType[t.id] = 5;
+    data.items = {}; for (const i of L.ITEMS) data.items[i.id] = 3;
+    data.perks = R.PERKS.map(p => p.id);
+    data.upgrades = {}; for (const u of R.UPGRADES) data.upgrades[u.id] = u.max;
+    data.knifeId = R.KNIVES[R.KNIVES.length - 1].id;
+    data.bestScore = 9999;
+    write('一键满配');
+  });
+
+  on('btnResetAchv', () => { data.achievements = []; write('清空成就'); });
+  on('btnResetCodex', () => { data.killedByType = {}; write('清空图鉴'); });
+  on('btnResetItems', () => { data.items = {}; write('清空掉落物'); });
+  on('btnResetStory', () => { data.storySeen = []; write('重置剧情'); });
+  on('btnWipe', () => {
+    if (!confirm('确定删除整个存档？这会清掉金币、武器、图鉴、成就、最高分。')) return;
+    S.clear();
+    data = freshData();
+    render();
+    status('已删除整个存档');
+  });
+
+  on('achvAll', () => { data.achievements = L.ACHIEVEMENTS.map(a => a.id); write('成就全选'); });
+  on('achvNone', () => { data.achievements = []; write('成就全不选'); });
+  on('codexAll10', () => {
+    data.killedByType = {}; for (const t of L.TYPES) data.killedByType[t.id] = 10;
+    write('图鉴全设成 10');
+  });
+  on('codexAll0', () => { data.killedByType = {}; write('图鉴清零'); });
+  on('itemsAll3', () => {
+    data.items = {}; for (const i of L.ITEMS) data.items[i.id] = 3;
+    write('掉落物全设成 3');
+  });
+  on('itemsAll0', () => { data.items = {}; write('掉落物清零'); });
+
+  on('btnReload', loadAndRender);
+  on('btnExport', () => {
+    const txt = JSON.stringify(data, null, 2);
+    navigator.clipboard && navigator.clipboard.writeText(txt);
+    const box = $('ioBox');
+    box.style.display = 'block';
+    box.value = txt;
+    box.select();
+    status('已复制到剪贴板 / 下方文本框');
+  });
+  on('btnImport', () => {
+    const box = $('ioBox');
+    if (box.style.display === 'none') {
+      box.style.display = 'block';
+      box.value = JSON.stringify(data, null, 2);
+      status('在下方文本框粘贴 JSON，再点一次「导入 JSON」');
+      return;
+    }
+    try {
+      const parsed = JSON.parse(box.value);
+      data = Object.assign(freshData(), parsed);
+      write('从 JSON 导入');
+      box.style.display = 'none';
+    } catch (e) {
+      status('JSON 解析失败：' + e.message, true);
+    }
+  });
+
+  loadAndRender();
+})();
+</script>
+</body>
+</html>

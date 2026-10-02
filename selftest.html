@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>等待自检…</title>
+<style>
+  body { margin: 0; background: #0b1220; color: #e8f0ff; font: 16px/1.7 'Segoe UI', system-ui, sans-serif; padding: 24px; }
+  #result { font-size: 22px; font-weight: 700; margin-bottom: 12px; }
+  .ok { color: #6ee7a8; }
+  .bad { color: #ff8a8a; }
+  pre { background: rgba(255,255,255,.06); padding: 12px; border-radius: 10px; white-space: pre-wrap; }
+  iframe { position: fixed; right: 8px; bottom: 8px; width: 480px; height: 270px; border: 1px solid #345; border-radius: 8px; opacity: .9; }
+</style>
+</head>
+<body>
+<div id="result">自检中…</div>
+<div id="detail"></div>
+<iframe id="stage" src="index.html"></iframe>
+<script>
+/*
+ * 浏览器自检：在真实浏览器里跑起游戏（用 iframe 加载 index.html），
+ * 检查：脚本是否报错、鲸鱼路径是否有效、开局后藤壶是否长出、画面是否真的画出东西。
+ * 结果写进标题和 DOM，方便用浏览器的 --dump-dom 读取。
+ */
+(function () {
+  const lines = [];
+  let failed = 0;
+  const ok = (cond, msg) => { lines.push((cond ? '通过  ' : '失败  ') + msg); if (!cond) failed++; };
+  const errors = [];
+
+  const finish = (extra) => {
+    if (extra) lines.push(extra);
+    const el = document.getElementById('result');
+    el.className = failed ? 'bad' : 'ok';
+    el.textContent = failed ? `自检失败：${failed} 项` : '自检全部通过';
+    document.getElementById('detail').innerHTML = '<pre>' + lines.join('\n') + '</pre>';
+    document.title = (failed ? 'SELFTEST-FAIL-' + failed : 'SELFTEST-PASS') + ' | ' + lines.join(' || ');
+  };
+
+  // 捕获 iframe 里的脚本错误
+  window.addEventListener('error', (e) => { errors.push('window error: ' + e.message); });
+  const frame = document.getElementById('stage');
+
+  frame.addEventListener('load', () => {
+    const w = frame.contentWindow;
+    const d = frame.contentDocument;
+    w.addEventListener('error', (e) => errors.push('frame error: ' + e.message));
+
+    setTimeout(() => {
+      try {
+        ok(errors.length === 0, `页面无脚本错误${errors.length ? '：' + errors.join('; ') : ''}`);
+        ok(!!w.WHALE_ASSETS, 'assets.js 已加载（WHALE_ASSETS 存在）');
+        const A = w.WHALE_ASSETS || {};
+        ok(typeof A.markPath === 'string' && A.markPath.length > 1000, `鲸鱼路径数据有效（${(A.markPath || '').length} 字符）`);
+        ok(Array.isArray(A.anchors) && A.anchors.length > 100, `藤壶落点 ${(A.anchors || []).length} 个`);
+        ok(typeof A.whaleSrc === 'string' && A.whaleSrc.indexOf('data:image/png') === 0, '鲸鱼贴图已内嵌');
+        ok(typeof A.avatarSrc === 'string' && A.avatarSrc.indexOf('data:image/png') === 0, '变身形象（Q 版女仆立绘）已内嵌');
+        ok(typeof A.handSrc === 'string' && A.handSrc.indexOf('data:image/png') === 0, '手部素材已内嵌');
+        ok(!!w.Path2D, 'Path2D 可用');
+
+        // 存档系统
+        ok(!!w.WhaleSave, '存档模块已加载（WhaleSave）');
+        if (w.WhaleSave) {
+          const probe = w.WhaleSave.save({ coins: 1, knifeId: 'rusty', upgrades: {}, perks: [], maxRound: 1, totalCoins: 1, sound: true });
+          ok(probe.ok, probe.ok ? '存档可写（localStorage 正常）' : `存档不可写：${probe.reason}（不影响玩，只是不保存）`);
+          const back = w.WhaleSave.load();
+          ok(back.ok && back.data.coins === 1, '存档可读且内容正确');
+          w.WhaleSave.clear();
+        }
+
+        // 武器表：要有直刺的剑
+        if (w.WhaleRules) {
+          const swords = w.WhaleRules.KNIVES.filter(k => k.kind === 'thrust');
+          ok(swords.length >= 1, `武器表里有 ${swords.length} 把直刺剑：${swords.map(s => s.name).join('、')}`);
+          ok(w.WhaleRules.PERKS && w.WhaleRules.PERKS.length >= 1, `特质 ${w.WhaleRules.PERKS.length} 个`);
+        } else {
+          ok(false, '规则模块 WhaleRules 没加载');
+        }
+
+        // 真的把鲸鱼路径塞进 Path2D，看会不会抛错（浏览器会校验路径语法）
+        let pathOk = false, pathErr = '';
+        try { new w.Path2D(A.markPath); pathOk = true; } catch (e) { pathErr = e.message; }
+        ok(pathOk, 'Path2D 能解析鲸鱼路径' + (pathOk ? '' : '：' + pathErr));
+
+        // 商店里的卡片画刀：说明 canvas 2d 上下文正常
+        const canvas = d.getElementById('stage');
+        ok(canvas && canvas.width > 0 && canvas.height > 0, `游戏画布已按尺寸初始化（${canvas && canvas.width}x${canvas && canvas.height}）`);
+        const ctx = canvas && canvas.getContext('2d');
+        ok(!!ctx, 'canvas 2d 上下文可用');
+
+        // 点开始，跑一会儿，看藤壶是否长出来、画布是否被绘制
+        const btn = d.getElementById('btnStart');
+        ok(!!btn, '找到开始按钮');
+        if (btn) btn.click();
+
+        setTimeout(() => {
+          const dbg = w.__whaleDebug;
+          ok(!!dbg, '能读到游戏内部状态');
+          if (dbg) {
+            ok(dbg.barnacles.length > 0, `开局长出 ${dbg.barnacles.length} 个藤壶`);
+            ok(dbg.phase === 'arrive' || dbg.phase === 'play', `游戏阶段正常（${dbg.phase}）`);
+            ok(dbg.whale.x > -2000 && dbg.whale.x < 4000, `鲸鱼位置合理（x=${Math.round(dbg.whale.x)}）`);
+            const hud = d.getElementById('left');
+            ok(hud && hud.textContent !== '0', `HUD 剩余藤壶数已更新（${hud && hud.textContent}）`);
+          }
+
+          // 画面是否真的画了东西：取画布中央区域，统计非背景色像素
+          try {
+            const px = ctx.getImageData(Math.round(canvas.width * 0.3), Math.round(canvas.height * 0.3),
+              Math.round(canvas.width * 0.4), Math.round(canvas.height * 0.4)).data;
+            let distinct = new Set();
+            for (let i = 0; i < px.length; i += 4 * 37) distinct.add(px[i] + ',' + px[i + 1] + ',' + px[i + 2]);
+            ok(distinct.size > 3, `画布确实绘制了内容（中央区域有 ${distinct.size} 种颜色）`);
+          } catch (e) {
+            ok(false, '读取画布像素失败：' + e.message);
+          }
+          finish();
+        }, 2500);
+      } catch (e) {
+        lines.push('自检过程抛错：' + e.message + '\n' + e.stack);
+        failed++;
+        finish();
+      }
+    }, 800);
+  });
+})();
+</script>
+</body>
+</html>
