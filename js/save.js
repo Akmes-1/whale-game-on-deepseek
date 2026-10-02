@@ -30,6 +30,7 @@
       killedByType: {}, // 藤壶图鉴
       achievements: [], // 已解锁成就
       bestScore: 0,     // 本机最高分
+      maxKnifeId: 'rusty', // 拥有过的最高档武器（切换武器不会丢）
       inputMode: 'pc',  // 操作模式：'pc' 鼠标 / 'touch' 手机
       savedAt: 0,
     };
@@ -71,6 +72,7 @@
       upgrades: Object.assign({}, base.upgrades, parsed.upgrades || {}),
       perks: Array.isArray(parsed.perks) ? parsed.perks.slice(0, 8) : [],
       maxRound: Math.max(1, Number(parsed.maxRound) || 1),
+      maxKnifeId: typeof parsed.maxKnifeId === 'string' ? parsed.maxKnifeId : (parsed.knifeId || 'rusty'),
       totalCoins: Math.max(0, Number(parsed.totalCoins) || 0),
       sound: parsed.sound !== false,
       fx: normFx(parsed.fx),
@@ -97,6 +99,7 @@
       upgrades: data.upgrades || {},
       perks: data.perks || [],
       maxRound: Math.max(1, Math.round(data.maxRound || 1)),
+      maxKnifeId: typeof data.maxKnifeId === 'string' ? data.maxKnifeId : (data.knifeId || 'rusty'),
       totalCoins: Math.max(0, Math.round(data.totalCoins || 0)),
       sound: data.sound !== false,
       fx: normFx(data.fx),

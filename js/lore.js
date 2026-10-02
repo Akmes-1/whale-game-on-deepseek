@@ -27,12 +27,16 @@
       id: 'normal', name: '普通藤壶', en: 'Barnacle', weight: 30,
       hpMul: 1, coinsMul: 1, tint: '#C9B79A', tag: '原住民',
       codex: '最普通的一种，安安静静吸鲸鱼的血，不吵不闹。某种意义上是最可爱的那种敌人。',
+      effects: [],
+      tip: '最常见的一种，没有特殊之处 —— 也正因为这样，它是最好打的那种。',
       tell: [], last: [],
     },
     {
       id: 'meizhai', name: '媚宅藤壶', en: 'Pander Barnacle', weight: 14,
       hpMul: 1, coinsMul: 1.2, tint: '#E8A0B8', tag: '审美警察',
       codex: '张嘴就是"这形象太媚宅了"。它自己也说不清"宅"到底指什么，但每次都能说得很确定。',
+      effects: ['金币 ×1.2'],
+      tip: '血量和普通藤壶一样，纯粹是话多。练手首选。',
       tell: ['这形象也太媚宅了吧', '建议改成中性，不然我不看'],
       last: ['穿女仆装？有必要吗', '我只是想让圈子更健康'],
     },
@@ -40,6 +44,8 @@
       id: 'lizhongke', name: '理中客藤壶', en: 'Both-Sides Barnacle', weight: 16,
       hpMul: 1.1, coinsMul: 1.3, tint: '#9FC6D8', tag: '客观中立',
       codex: '口口声声"我不是针对谁"，但它的钳子永远只夹一边。它的"客观"是一种姿势，不是一个立场。',
+      effects: ['血量 ×1.1', '金币 ×1.3'],
+      tip: '比普通藤壶稍微耐打一点。它自己觉得这很"客观"。',
       tell: ['我不是针对谁，我只是客观说一句', '我谁也不站，但你们这样确实不对'],
       last: ['两边都有问题，但主要还是你们', '我只是说句公道话'],
     },
@@ -47,6 +53,8 @@
       id: 'daode', name: '道德高地藤壶', en: 'Moral Highground', weight: 12,
       hpMul: 1.2, coinsMul: 1.4, tint: '#D8C79F', tag: '为你着想',
       codex: '它站在很高的地方，高到看不清鲸鱼身上的其他藤壶。它只看得见你。',
+      effects: ['血量 ×1.2', '金币 ×1.4'],
+      tip: '站在道德高地上，所以位置比较高 —— 但高度不影响它挨刀。',
       tell: ['你们这样不包容其他审美', '为什么不做一个所有人都能接受的版本？'],
       last: ['我只是希望这个圈子更健康', '你们这样会劝退很多人的'],
     },
@@ -54,6 +62,8 @@
       id: 'quandi', name: '圈地藤壶', en: 'Turf Barnacle', weight: 12,
       hpMul: 1.5, coinsMul: 1.8, tint: '#B8A0E0', tag: '先来后到',
       codex: '它会分泌一种黏液，把周围标记成"我们的地盘"。至于这个"我们"是谁，它也没想好。',
+      effects: ['血量 ×1.5（比较耐打）', '金币 ×1.8'],
+      tip: '插了界桩就以为地是它的了。多砍两刀而已。',
       tell: ['这里现在是我们的地盘了', '我们来得更早'],
       last: ['你们能不能去别的地方？', '这地方本来就该是我们的'],
     },
@@ -61,6 +71,8 @@
       id: 'lacai', name: '拉踩藤壶', en: 'Put-Down Barnacle', weight: 12,
       hpMul: 1.1, coinsMul: 1.4, tint: '#E0B070', tag: '比较文学',
       codex: '它没法单独存在——必须踩着另一个东西才能站直。踩的东西越高，它站得越直。',
+      effects: ['金币 ×1.4'],
+      tip: '血量普通，但掉钱多。踩别人踩得越狠，身上油水越多。',
       tell: ['你们这个不行，看看我们那个', '审美水平差了一个档次'],
       last: ['就这？也配叫拟人？', '我们那个比这个强多了'],
     },
@@ -70,6 +82,8 @@
       // 受击时短暂"审核中"（半透明），是纯表现，不影响数值
       onHitAlpha: true,
       codex: '它不会跟你吵。它只是安静地截好图、填好表、点下提交，然后等你消失。',
+      effects: ['被打中时短暂变半透明（"审核中"）', '金币 ×1.6'],
+      tip: '半透明只是障眼法，伤害照吃。别被它吓到。',
       tell: ['我已经提交举报了', '理由：不适宜内容'],
       last: ['等着被下架吧', '流程已经走起来了'],
     },
@@ -77,6 +91,8 @@
       id: 'shuangbiao', name: '双标藤壶', en: 'Double Standard', weight: 10,
       hpMul: 1.3, coinsMul: 1.5, tint: '#C0D890', tag: '两套尺子',
       codex: '它随身带着两把尺子，一把量自己，一把量你。它自己那把是橡皮做的。',
+      effects: ['血量 ×1.3', '金币 ×1.5'],
+      tip: '两把尺子，一把量你一把量自己。砍它就完事了。',
       tell: ['我们那叫创作自由，你们那叫媚', '这能一样吗？'],
       last: ['我们是在表达，你们是在迎合', '情况不一样，你别偷换概念'],
     },
@@ -86,6 +102,8 @@
       // 死亡时分裂出两只小的
       split: 2,
       codex: '打死它一只，会分裂出两只——因为它的每一句话都能被单独截出来，再长成一个新的它。',
+      effects: ['清掉时分裂成 2 只小藤壶', '金币 ×1.5'],
+      tip: '分裂出来的小只不再分裂，血量只有 1/4。别慌，继续切就行。',
       tell: ['你这句话我截图了', '我挂你一下，你别介意'],
       last: ['原话不是这样的，我帮你补充完整', '断章取义？我这是还原语境'],
     },
@@ -93,6 +111,8 @@
       id: 'suiyue', name: '岁月史书藤壶', en: 'Revisionist Barnacle', weight: 7,
       hpMul: 2.6, coinsMul: 2.4, tint: '#B0A890', tag: '历史学家',
       codex: '壳特别厚。每被打一下，它就会重写一遍自己的来历，直到它变成"最早的那一个"。',
+      effects: ['血量 ×2.6（壳特别厚）', '金币 ×2.4'],
+      tip: '全场最厚的壳。建议换了大刀或者抽到剑再来碰它。',
       tell: ['明明是我们先来的', '历史是这样的：……'],
       last: ['你们是不是忘了当初是谁先画的？', '记录都在，我只是懒得贴'],
     },
@@ -100,12 +120,22 @@
       id: 'zhengxu', name: '正统藤壶', en: 'Canon Barnacle', weight: 7,
       hpMul: 2.0, coinsMul: 2.2, tint: '#E8D060', tag: '官方认证（自称）',
       codex: '它胸前挂着一枚自制的徽章，上面写着"正统"。没有人给它发过这枚徽章。',
+      effects: ['血量 ×2.0', '金币 ×2.2'],
+      tip: '挂着自制徽章，自称正统。徽章不能挡刀。',
       tell: ['我们那版才是正统', '官方应该认我们这版'],
       last: ['你们那是野路子', '迟早会有人承认我们的'],
     },
   ];
 
   const byId = (id) => TYPES.find(t => t.id === id) || TYPES[0];
+  // 按权重算出现频率（图鉴详情里显示）
+  const TOTAL_WEIGHT = TYPES.reduce((a, t) => a + t.weight, 0);
+  function rarityOf(type) {
+    const pct = (type.weight / TOTAL_WEIGHT) * 100;
+    if (pct >= 18) return { text: '常见', pct };
+    if (pct >= 10) return { text: '普通', pct };
+    return { text: '稀有', pct };
+  }
   // 按权重随机（排除 normal 之外的按进度解锁：前期只出温和的几种）
   function pickType(rng, round) {
     const pool = TYPES.filter(t => {
@@ -319,7 +349,7 @@
   };
 
   return {
-    TYPES, byId, pickType,
+    TYPES, byId, pickType, rarityOf,
     ITEMS, itemById, rollItem,
     JOKE_WEAPONS,
     ACHIEVEMENTS,

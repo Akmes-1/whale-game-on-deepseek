@@ -271,14 +271,35 @@
 
   function canAfford(state, cost) { return state.coins >= cost; }
 
+  // 当前拥有的最高档武器下标（老存档没有 maxKnifeId 就退回 knifeId）
+  function ownedKnifeIndex(state) {
+    const top = state.maxKnifeId || state.knifeId || 'rusty';
+    const i = KNIVES.findIndex(k => k.id === top);
+    return i < 0 ? 0 : i;
+  }
+  // 某把武器是否已拥有
+  function ownsKnife(state, id) {
+    const i = KNIVES.findIndex(k => k.id === id);
+    return i >= 0 && i <= ownedKnifeIndex(state);
+  }
+  // 装备（只能装备已拥有的）
+  function equipKnife(state, id) {
+    const k = knifeById(id);
+    if (!k) return { ok: false, reason: 'unknown' };
+    if (!ownsKnife(state, id)) return { ok: false, reason: 'not-owned' };
+    state.knifeId = id;
+    return { ok: true, knife: k };
+  }
+
   function buyKnife(state, id) {
     const knife = knifeById(id);
     const idx = KNIVES.indexOf(knife);
-    const curIdx = KNIVES.findIndex(k => k.id === state.knifeId);
-    if (idx <= curIdx) return { ok: false, reason: 'already-owned' };
+    const ownIdx = ownedKnifeIndex(state);          // 拥有关系看 maxKnifeId，不看当前装备
+    if (idx <= ownIdx) return { ok: false, reason: 'already-owned' };
     if (!canAfford(state, knife.cost)) return { ok: false, reason: 'poor' };
     state.coins -= knife.cost;
-    state.knifeId = knife.id;
+    state.knifeId = knife.id;                       // 买了就直接装备
+    state.maxKnifeId = knife.id;                    // 同时把"拥有上限"抬上去
     return { ok: true, knife };
   }
 
@@ -316,7 +337,7 @@
     makeRng, KNIVES, UPGRADES, BARNACLE_KINDS, WHALE_TINTS,
     barnacleCountForRound, hpScaleForRound, airForRound, roundConfig, scatterBarnacles,
     knifeById, upgradeById, effectiveStats, applyDamage, canAfford,
-    purchase, activePerk, equippedPerks, PERKS, perkById,
+    purchase, ownedKnifeIndex, ownsKnife, equipKnife, activePerk, equippedPerks, PERKS, perkById,
     pierceTargets, pierceDamage, SAVE_VERSION,
     buyKnife, buyUpgrade, upgradeCost, remainingBarnacles, clearBonus,
   };

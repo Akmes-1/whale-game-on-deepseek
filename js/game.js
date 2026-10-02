@@ -29,20 +29,76 @@
   };
 
   // ------------------------------------------------------------------ virtual canvas
-  const VW = 1280, VH = 720;
+  // 虚拟画布尺寸是「活」的：横屏用 1280x720，竖屏用 720x1280。
+  // 这样手机竖屏时画面能铺满整块屏幕，藤壶也够大点得中（不用旋转手机）。
+  let VW = 1280, VH = 720;
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d');
   let scale = 1, offX = 0, offY = 0, dpr = 1;
+  let portrait = false;
+
+  // 按当前方向重算：虚拟尺寸 + 鲸鱼大小 + 出生点 + 武器导轨
+  function layout() {
+    const cssW = canvas.clientWidth || Math.round(window.innerWidth) || 1280;
+    const cssH = canvas.clientHeight || Math.round(window.innerHeight) || 720;
+    portrait = cssH > cssW * 1.05;              // 明显更高就是竖屏
+
+    if (portrait) {
+      // 竖屏：固定虚拟宽度 720，高度按手机实际宽高比算 → 正好铺满，不留黑边
+      // （手机比例五花八门 16:9 / 19.5:9 / 20:9，所以不能写死 1280）
+      VW = 720;
+      const h = Math.round(720 * cssH / cssW);
+      VH = Math.max(1100, Math.min(1900, h));
+    } else {
+      VW = 1280; VH = 720;                      // 横屏：16:9（桌面就是这个比例）
+    }
+
+    // 鲸鱼宽度：横屏占 720，竖屏略窄一点留出边距
+    WHALE_W = portrait ? 650 : 720;
+    whaleScale = WHALE_W / MARK.w;
+    WHALE_H = MARK.h * whaleScale;
+
+    // 出生点 + 导轨：竖屏时把「鲸鱼 + 导轨」当成一整块垂直居中，
+    // 否则手机会出现上面一只鲸鱼、最下面一条导轨、中间空一大片的情况。
+    if (portrait) {
+      const gap = 130;                                    // 鲸鱼和导轨之间留的空
+      const playH = WHALE_H + gap + 90;                   // 整块的高度（含导轨本身）
+      const top = Math.max(70, (VH - playH) / 2);
+      HOME.x = VW / 2;
+      HOME.y = top + WHALE_H / 2;
+      RAIL.y = top + WHALE_H + gap;
+    } else {
+      HOME.x = VW / 2 + 30;
+      HOME.y = VH * 0.44;
+      RAIL.y = VH - 74;
+    }
+
+    const margin = portrait ? 70 : 118;
+    RAIL.x0 = margin;
+    RAIL.x1 = VW - margin;
+    RAIL.cx = (RAIL.x0 + RAIL.x1) / 2;
+    RAIL.amp = (RAIL.x1 - RAIL.x0) / 2;
+    LAUNCHER.x = RAIL.x0 - 22;
+    LAUNCHER.y = RAIL.y;
+  }
 
   function resize() {
-    const rect = canvas.getBoundingClientRect();
+    const cssW = canvas.clientWidth || Math.round(window.innerWidth) || 1280;
+    const cssH = canvas.clientHeight || Math.round(window.innerHeight) || 720;
     dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.max(1, Math.round(rect.width * dpr));
-    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    canvas.width = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    layout();                                    // 先定虚拟尺寸，再算缩放
     scale = Math.min(canvas.width / VW, canvas.height / VH);
     offX = (canvas.width - VW * scale) / 2;
     offY = (canvas.height - VH * scale) / 2;
   }
+
+  // 下面这些会在 layout() 里被重算，所以是 let 而不是 const
+  let whaleScale = 1;
+  const HOME = { x: 1280 / 2 + 30, y: 720 * 0.44 };
+  const LAUNCHER = { x: 96, y: 720 - 74 };
+  const RAIL = { y: 720 - 74, x0: 118, x1: 1280 - 118, cx: 640, amp: 522, speed: 1.45 };
 
   // ------------------------------------------------------------------ whale geometry
   const MARK = { w: A.markViewBox[2], h: A.markViewBox[3] };
@@ -55,10 +111,9 @@
     small: A.smallAnchors && A.smallAnchors.length ? A.smallAnchors : A.anchors,
   };
 
-  const WHALE_W = 720;                      // on-screen width at 1:1
-  const whaleScale = WHALE_W / MARK.w;
-  const WHALE_H = MARK.h * whaleScale;
-  const HOME = { x: VW / 2 + 30, y: VH * 0.44 };
+  // 鲸鱼在屏幕上的尺寸：横屏 720 宽，竖屏略窄（都是 layout() 里重算）
+  let WHALE_W = 720;
+  let WHALE_H = MARK.h * (720 / MARK.w);
 
   // ------------------------------------------------------------------ state
   const state = {
@@ -66,13 +121,18 @@
     round: 1,
     coins: 0,
     totalCoins: 0,
-    knifeId: 'rusty',
+    knifeId: 'rusty',      // 当前装备的武器
+    maxKnifeId: 'rusty',   // 拥有过的最高档武器（决定"拥有"，切换武器不会丢东西）
+    bagTab: 'weapon',      // 背包页签：weapon | perk | up | item
     upgrades: { wide: 0, crit: 0, magnet: 0, gloves: 0, tank: 0 },
     perks: [],
     maxRound: 1,
     storySeen: [],         // 已播放过的剧情波数
     codexTab: 'types',     // 图鉴当前页签
     codexFrom: 'title',    // 从哪打开的图鉴
+    codexDetail: null,     // 图鉴里正在看哪一个藤壶的详情（typeId）
+    codexOrigin: null,     // 从哪张卡展开的（做动画用）
+    shopTab: 'trend',      // 商店页签：trend | gacha | knife | perk | up
     // ---- 内容层：收集 / 图鉴 / 成就 / 最高分 ----
     items: {},             // 掉落物收集：{ itemId: 数量 }
     killedByType: {},      // 藤壶图鉴：{ typeId: 累计击杀 }
@@ -125,15 +185,8 @@
 
   // 武器站的「导轨平面」：架在屏幕下方，整条轨道自己左右来回移动。
   // 位置不归玩家管，玩家只用鼠标决定「朝哪个方向发射」。
-  const LAUNCHER = { x: 96, y: VH - 74 };
-  const RAIL = {
-    y: VH - 74,
-    x0: 118,                    // 轨道左端
-    x1: VW - 118,               // 轨道右端
-    speed: 1.45,                // 来回速度（弧度/秒）
-  };
-  RAIL.cx = (RAIL.x0 + RAIL.x1) / 2;
-  RAIL.amp = (RAIL.x1 - RAIL.x0) / 2;
+  // LAUNCHER / RAIL 的实际数值在 layout() 里按横竖屏重算（定义见文件上方）。
+  RAIL.speed = 1.45;                // 来回速度（弧度/秒）
 
   // 武器当前所在的 x（自动左右移动）
   function railX() {
@@ -220,7 +273,8 @@
   // ------------------------------------------------------------------ input
   function toVirtual(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    const x = (clientX - rect.left) * dpr, y = (clientY - rect.top) * dpr;
+    const x = (clientX - rect.left) * dpr;
+    const y = (clientY - rect.top) * dpr;
     return { x: (x - offX) / scale, y: (y - offY) / scale };
   }
   // 手机模式下"正在拖动瞄准"（松手才发射）
@@ -2451,6 +2505,7 @@
     return {
       coins: state.coins,
       knifeId: state.knifeId,
+      maxKnifeId: state.maxKnifeId || state.knifeId,
       upgrades: Object.assign({}, state.upgrades),
       perks: (state.perks || []).slice(),
       maxRound: Math.max(state.maxRound || 1, state.round),
@@ -2482,6 +2537,8 @@
     state.coins = data.coins || 0;
     state.totalCoins = data.totalCoins || 0;
     state.knifeId = data.knifeId || 'rusty';
+    // 老存档没有 maxKnifeId：用 knifeId 兜底（不会丢已买的武器）
+    state.maxKnifeId = data.maxKnifeId || data.knifeId || 'rusty';
     state.upgrades = Object.assign({ wide: 0, crit: 0, magnet: 0, gloves: 0, tank: 0 }, data.upgrades || {});
     state.perks = (data.perks || []).slice();
     state.maxRound = data.maxRound || 1;
@@ -2518,7 +2575,200 @@
   }
   let hudTick = 0;
 
+  // ---------------------------------------------------------------- 背包
+  const BAG_TABS = ['weapon', 'perk', 'up', 'item'];
+  function renderBag() {
+    const body = el('bagBody');
+    if (!body) return;
+    const tab = BAG_TABS.indexOf(state.bagTab) >= 0 ? state.bagTab : 'weapon';
+    state.bagTab = tab;
+    const wallet = el('bagCoins');
+    if (wallet) wallet.textContent = state.coins;
+    const bar = el('bagTabs');
+    if (bar && bar.querySelectorAll) {
+      const btns = bar.querySelectorAll('.stab');
+      for (let i = 0; i < btns.length; i++) {
+        const b = btns[i];
+        if (b && b.classList && b.dataset) b.classList.toggle('on', b.dataset.btab === tab);
+      }
+    }
+    let html = '';
+    if (tab === 'weapon') {
+      const ownIdx = R.ownedKnifeIndex(state);
+      const total = R.KNIVES.length;
+      const have = Math.min(ownIdx + 1, total);
+      html += '<p class="codexsum">武器 · 已拥有 <b>' + have + ' / ' + total + '</b>　点一下就能换上</p>';
+      html += '<div class="baglist">';
+      R.KNIVES.map((k, i) => ({ k, i })).forEach(({ k, i }) => {
+        const owned = i <= ownIdx;
+        const equipped = k.id === state.knifeId;
+        const isSword = (k.kind || 'throw') === 'thrust';
+        html += '<div class="bagrow' + (equipped ? ' eq' : '') + (owned ? '' : ' locked') + '"' +
+          ' data-equip="' + k.id + '"' +
+          (owned && !equipped ? ' onclick="__bagEquip(\'' + k.id + '\')"' : '') + '>' +
+          '<canvas class="bagicon" width="112" height="58"></canvas>' +
+          '<div class="bagmeta">' +
+          '<strong>' + (owned ? k.name : '？？？') + (isSword ? ' ⚔' : '') + '</strong>' +
+          '<span class="bagstat">伤害 ' + k.damage + ' · 冷却 ' + k.cooldown.toFixed(2) + 's' +
+          (isSword ? ' · 贯穿 ' + (k.pierce >= 99 ? '无限' : k.pierce + ' 个') : '') + '</span>' +
+          '<span class="bagdesc">' + (owned ? k.desc : (isSword ? '抽卡才能拿到' : '还没买到')) + '</span>' +
+          '</div>' +
+          '<span class="bagtag' + (equipped ? ' on' : '') + '">' +
+          (equipped ? '使用中' : (owned ? '点击装备' : (isSword ? '抽卡获得' : '🪙 ' + k.cost))) +
+          '</span></div>';
+      });
+      html += '</div>';
+    } else if (tab === 'perk') {
+      const perks = state.perks || [];
+      html += '<p class="codexsum">特质 · 已拥有 <b>' + perks.length + ' / ' + R.PERKS.length + '</b>　（买了就一直生效，不用切换）</p>';
+      html += '<div class="baglist">';
+      R.PERKS.forEach((p) => {
+        const owned = perks.includes(p.id);
+        html += '<div class="bagrow' + (owned ? ' eq' : ' locked') + '">' +
+          '<div class="bagmeta">' +
+          '<strong>' + (owned ? p.name : '？？？') + '</strong>' +
+          '<span class="bagdesc">' + (owned ? (p.desc || '') : '还没解锁') + '</span>' +
+          '</div><span class="bagtag' + (owned ? ' on' : '') + '">' +
+          (owned ? '已生效' : '🪙 ' + p.cost) + '</span></div>';
+      });
+      html += '</div>';
+    } else if (tab === 'up') {
+      let lv = 0, maxLv = 0;
+      R.UPGRADES.forEach(u => { lv += (state.upgrades[u.id] || 0); maxLv += u.max; });
+      html += '<p class="codexsum">道具 · 等级 <b>' + lv + ' / ' + maxLv + '</b>　（数值升级，一直生效）</p>';
+      html += '<div class="baglist">';
+      R.UPGRADES.forEach((u) => {
+        const l = state.upgrades[u.id] || 0;
+        html += '<div class="bagrow' + (l > 0 ? ' eq' : '') + '">' +
+          '<div class="bagmeta">' +
+          '<strong>' + u.name + '</strong>' +
+          '<span class="bagstat">等级 ' + l + ' / ' + u.max + '</span>' +
+          '<span class="bagdesc">' + (u.desc || '') + '</span>' +
+          '</div><span class="bagtag' + (l > 0 ? ' on' : '') + '">' + (l > 0 ? 'Lv.' + l : '未购买') + '</span></div>';
+      });
+      html += '</div>';
+    } else {
+      const items = state.items || {};
+      const kinds = L ? L.ITEMS.filter(it => (items[it.id] || 0) > 0) : [];
+      const totalCount = Object.values(items).reduce((a, b) => a + b, 0);
+      html += '<p class="codexsum">收藏 · 已收集 <b>' + kinds.length + ' / ' + (L ? L.ITEMS.length : 0) +
+        '</b> 种，共 <b>' + totalCount + '</b> 个</p>';
+      if (!kinds.length) {
+        html += '<p class="cdnone">还没捡到任何掉落物。切藤壶的时候会随机掉。</p>';
+      } else {
+        html += '<div class="baglist">';
+        kinds.forEach((it) => {
+          html += '<div class="bagrow eq"><div class="bagmeta">' +
+            '<strong>' + it.name + '</strong>' +
+            '<span class="bagdesc">' + (it.desc || '') + '</span>' +
+            '</div><span class="bagtag on">×' + items[it.id] + '</span></div>';
+        });
+        html += '</div>';
+      }
+    }
+    body.innerHTML = html;
+    // 武器图标
+    const icons = body.querySelectorAll ? body.querySelectorAll('.bagicon') : [];
+    const ownIdx2 = R.ownedKnifeIndex(state);
+    R.KNIVES.forEach((k, i) => {
+      if (i < icons.length && icons[i]) drawKnifeIcon(icons[i], k);
+    });
+  }
+  // 背包里点一下换武器（行是 innerHTML 拼的，所以用内联 onclick 调这个）
+  if (typeof window !== 'undefined') {
+    window.__bagEquip = function (id) {
+      const res = R.equipKnife(state, id);
+      if (!res.ok) return;
+      SFX.buy();
+      updateHud(); renderBag(); renderShop(); persist('换武器');
+      if (typeof toast === 'function') toast('已换上 <b>' + res.knife.name + '</b>', 'weapon');
+    };
+  }
+
+  function bindBagTabs() {
+    const bar = el('bagTabs');
+    if (!bar || !bar.querySelectorAll) return;
+    const btns = bar.querySelectorAll('.stab');
+    for (let i = 0; i < btns.length; i++) {
+      const b = btns[i];
+      if (!b || !b.dataset) continue;
+      b.onclick = () => {
+        state.bagTab = b.dataset.btab;
+        renderBag();
+        const body = el('bagBody');
+        if (body) body.scrollTop = 0;
+      };
+    }
+  }
+  function openBag(from) {
+    state.bagFrom = from || state.phase;
+    if (state.phase !== 'bag') state.bagPrevPhase = state.phase;
+    state.phase = 'bag';                 // 打开背包 = 暂停（氧气不掉）
+    renderBag();
+    el('bag').classList.add('show');
+  }
+  function closeBag() {
+    el('bag').classList.remove('show');
+    // 还原到打开前的阶段（从标题页开的就回标题页，从游戏里开的就继续打）
+    state.phase = state.bagPrevPhase || (state.bagFrom === 'title' ? 'title' : 'play');
+    if (state.phase === 'title') el('title').classList.add('show');
+  }
+
   // ---------------------------------------------------------------- 图鉴
+  // 把某种藤壶「游戏内的样子」画到一个小画布上（用的就是游戏里同一个绘制函数，
+  // 所以图鉴里看到的就是你实际会打的那只）
+  function drawBarnaclePreview(cv, type) {
+    if (!cv || !type) return;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    const scale = Math.min(cv.width, cv.height) / 150;
+    const fake = {
+      id: 'preview', x: 0, y: 0,
+      size: 44,
+      hp: Math.max(1, Math.round(6 * (type.hpMul || 1))),
+      maxHp: Math.max(1, Math.round(6 * (type.hpMul || 1))),
+      dead: false, pop: null, hit: 0, hitCount: 0,
+      seed: 1234, coins: 1,
+      typeId: type.id, typeName: type.name, tintColor: type.tint,
+    };
+    g.save();
+    g.translate(cv.width / 2, cv.height / 2 + 6 * scale);
+    g.scale(scale, scale);
+    try { drawBarnacle(g, fake); } catch (e) { /* 画不出来也不影响文字 */ }
+    g.restore();
+  }
+
+  // 图鉴卡片的点击入口（卡片是 innerHTML 拼的，所以用内联 onclick 调这个）
+  if (typeof window !== 'undefined') {
+    // 打开详情：顺手记住「点的是哪张卡」，让详情从那张卡的位置展开（手机开 App 的感觉）
+    window.__codexOpen = function (id, ev) {
+      state.codexDetail = id;
+      state.codexOrigin = null;
+      try {
+        const card = ev && ev.currentTarget;
+        const body = el('codexBody');
+        if (card && body && card.getBoundingClientRect && body.getBoundingClientRect) {
+          const a = card.getBoundingClientRect();
+          const b = body.getBoundingClientRect();
+          if (a.width && b.width) {
+            state.codexOrigin = { x: a.left + a.width / 2 - b.left, y: a.top + a.height / 2 - b.top };
+          }
+        }
+      } catch (e) { state.codexOrigin = null; }
+      renderCodex();
+      const body = el('codexBody');
+      if (body) body.scrollTop = 0;          // 打开详情后滚回顶部
+    };
+    // 返回：让列表从左上角淡回来（反向收缩交给 CSS）
+    window.__codexBack = function () {
+      state.codexDetail = null;
+      state.codexFrom_ = state.codexFrom;
+      renderCodex();
+      const body = el('codexBody');
+      if (body) body.scrollTop = 0;
+    };
+  }
+
   function renderCodex() {
     if (!L) return;
     const wrap = el('codexBody');
@@ -2531,6 +2781,53 @@
     }
     // 注意：filter 会把「种类对象」传进来，所以要取 t.id（原来写成 t，导致收录数永远是 0）
     const owned = (t) => (state.killedByType[t.id] || 0) > 0;
+
+    // ---- 详情页：点开某一个藤壶 ----
+    if (state.codexDetail) {
+      const t = L.byId(state.codexDetail);
+      const c = state.killedByType[t.id] || 0;
+      const rar = L.rarityOf ? L.rarityOf(t) : { text: '', pct: 0 };
+      const seen = c > 0;
+      const lines = [].concat(t.tell || [], t.last || []);
+      // 生长原点：有卡片位置就从卡片长出来，没有就居中
+      const org = state.codexOrigin;
+      const orgStyle = org
+        ? ' style="transform-origin:' + Math.round(org.x) + 'px ' + Math.round(org.y) + 'px"'
+        : ' style="transform-origin:50% 0%"';
+      let d = '<div class="cxdetail cxopen"' + orgStyle + '>';
+      d += '<button class="fxbtn backbtn" id="cxBack" onclick="__codexBack()">← 返回图鉴</button>';
+      d += '<div class="cdhead">' +
+        '<div class="cdpic"><canvas width="230" height="200"></canvas></div>' +
+        '<div class="cdinfo">' +
+        '<h3>' + t.name + '</h3>' +
+        '<p class="cden">' + (t.en || '') + '</p>' +
+        '<p class="cdtags"><span class="tagpill" style="border-color:' + t.tint + '">' + t.tag + '</span>' +
+        '<span class="tagpill rar' + (rar.text === '稀有' ? ' rare' : '') + '">' + rar.text + ' · ' + rar.pct.toFixed(0) + '%</span>' +
+        (t.elite ? '' : '') + '</p>' +
+        '<p class="cdcount">已清理 <b>' + c + '</b> 只' + (seen ? '' : '（还没遇到过）') + '</p>' +
+        '</div></div>';
+
+      d += '<h4>特殊效果</h4>';
+      if (t.effects && t.effects.length) {
+        d += '<ul class="cdeffects">' + t.effects.map(e => '<li>' + e + '</li>').join('') + '</ul>';
+      } else {
+        d += '<p class="cdnone">没有特殊效果 —— 就是一只老老实实的藤壶。</p>';
+      }
+      if (t.tip) d += '<p class="cdtip">💡 ' + t.tip + '</p>';
+
+      d += '<h4>图鉴条目</h4><p class="cdcodex">' + (seen ? t.codex : '还没遇到过，先把它打出来再来看介绍。') + '</p>';
+
+      if (lines.length) {
+        d += '<h4>它会说的话</h4><ul class="cdlines">' +
+          lines.map(l => '<li>「' + l + '」</li>').join('') + '</ul>';
+      }
+      d += '</div>';
+      wrap.innerHTML = d;
+      const cv = wrap.querySelector('canvas');
+      drawBarnaclePreview(cv, t);
+      return;
+    }
+
     let html = '';
     if (tab === 'types') {
       const got = L.TYPES.filter(owned).length;
@@ -2538,17 +2835,20 @@
       for (const t of L.TYPES) {
         const c = state.killedByType[t.id] || 0;
         const seen = c > 0;
-        html += '<div class="codexcard' + (seen ? '' : ' locked') + '">' +
+        html += '<div class="codexcard clickable' + (seen ? '' : ' locked') + '"' +
+          ' onclick="__codexOpen(\'' + t.id + '\', event)" title="点击查看详情">' +
           '<div class="cxhead"><span class="cxdot" style="background:' + t.tint + '"></span>' +
           '<b>' + (seen ? t.name : '？？？') + '</b><em>' + (seen ? t.tag : '未收录') + '</em></div>' +
           (seen
             ? '<p class="cxdesc">' + t.codex + '</p>' +
               (t.tell && t.tell.length ? '<p class="cxline">「' + t.tell[0] + '」</p>' : '') +
-              '<p class="cxcount">已清理 ' + c + ' 只</p>'
+              '<p class="cxcount">已清理 ' + c + ' 只 · <span class="cxgo">查看详情 ›</span></p>'
             : '<p class="cxdesc">还没遇到过这种藤壶。</p>') +
           '</div>';
       }
       html += '</div>';
+      state.codexDetail = null;
+      state.codexOrigin = null;
     } else if (tab === 'items') {
       const got = L.ITEMS.filter(i => (state.items[i.id] || 0) > 0).length;
       html += '<p class="codexsum">掉落物收藏 · 已收集 <b>' + got + ' / ' + L.ITEMS.length + '</b></p><div class="codexgrid">';
@@ -2604,6 +2904,7 @@
 
   function openCodex() {
     state.codexFrom = state.phase;
+    state.codexDetail = null;
     state.phase = 'codex';
     renderCodex();
     el('codex').classList.add('show');
@@ -2716,10 +3017,10 @@
   }
   // 只出穿刺武器的池子（绝不包含普通武器）
   function thrustPool() {
-    const curIdx = R.KNIVES.findIndex(k => k.id === state.knifeId);
+    const ownIdx = R.ownedKnifeIndex(state);   // 看"拥有上限"，不看当前装备
     return R.KNIVES
       .map((k, i) => ({ k, i }))
-      .filter(x => (x.k.kind || 'throw') === 'thrust' && x.i > curIdx)
+      .filter(x => (x.k.kind || 'throw') === 'thrust' && x.i > ownIdx)
       .map(x => x.k);
   }
   // 抽一次：返回 { rarity, label, kind }
@@ -2736,6 +3037,7 @@
         // 从最接近当前档位的那把开始给，保证是稳步变强而不是跳级
         const pick = notOwned[0];
         state.knifeId = pick.id;
+        state.maxKnifeId = pick.id;
         return { rarity: rar, label: '穿刺武器 · ' + pick.name, kind: 'knife', coins: 0 };
       }
       state.coins += 300;
@@ -2847,10 +3149,40 @@
     openShop();
   }
 
+  // ---- 商店页签：热搜 / 抽卡 / 武器 / 特质 / 道具 ----
+  const SHOP_TABS = ['trend', 'gacha', 'knife', 'perk', 'up'];
+  function applyShopTab() {
+    const t = SHOP_TABS.indexOf(state.shopTab) >= 0 ? state.shopTab : 'trend';
+    state.shopTab = t;
+    const scroll = el('shopScroll');
+    if (scroll && scroll.dataset) scroll.dataset.active = t;
+    const bar = el('shopTabs');
+    if (bar && bar.querySelectorAll) {
+      const btns = bar.querySelectorAll('.stab');
+      for (let i = 0; i < btns.length; i++) {
+        const b = btns[i];
+        if (b && b.classList && b.dataset) b.classList.toggle('on', b.dataset.stab === t);
+      }
+    }
+    if (scroll) scroll.scrollTop = 0;
+  }
+  function setShopTab(t) { state.shopTab = t; applyShopTab(); }
+  function bindShopTabs() {
+    const bar = el('shopTabs');
+    if (!bar || !bar.querySelectorAll) return;
+    const btns = bar.querySelectorAll('.stab');
+    for (let i = 0; i < btns.length; i++) {
+      const b = btns[i];
+      if (!b || !b.dataset) continue;
+      b.onclick = () => setShopTab(b.dataset.stab);
+    }
+  }
+
   function openShop() {
     state.phase = 'shop';
     renderShop();
     el('shop').classList.add('show');
+    applyShopTab();
     // 入侵清除度
     const cleared = Math.max(0, (state.maxRound || state.round) - 1);
     const pct = invasionPct(cleared);
@@ -2932,16 +3264,18 @@
     wallet.textContent = state.coins;
     const kList = el('knifeList');
     kList.innerHTML = '';
-    const curIdx = R.KNIVES.findIndex(k => k.id === state.knifeId);
+    const ownIdx = R.ownedKnifeIndex(state);
+    const eqIdx = R.KNIVES.findIndex(k => k.id === state.knifeId);
     // 穿刺类武器（剑/电锯/大藤壶）是抽卡专属，商店不卖 —— 这里过滤掉，
     // 但保留它在 KNIVES 里的原始索引，用来判断"是否已拥有"。
     R.KNIVES.map((k, i) => ({ k, i }))
       .filter(x => (x.k.kind || 'throw') !== 'thrust')
       .forEach(({ k, i }) => {
-      const owned = i <= curIdx;
+      const owned = i <= ownIdx;
+      const equipped = k.id === state.knifeId;
       const isSword = (k.kind || 'throw') === 'thrust';
       const card = document.createElement('button');
-      card.className = 'card' + (owned ? ' owned' : '') + (i === curIdx ? ' current' : '') + (isSword ? ' sword' : '');
+      card.className = 'card' + (owned ? ' owned' : '') + (equipped ? ' current' : '') + (isSword ? ' sword' : '');
       card.innerHTML = `
         <canvas width="140" height="72"></canvas>
         <div class="meta">
@@ -2950,13 +3284,22 @@
           <span class="stat">伤害 ${k.damage} · 冷却 ${k.cooldown.toFixed(2)}s${isSword ? ` · 贯穿 ${k.pierce >= 99 ? '无限' : k.pierce + ' 个'}` : ''}</span>
           <span class="desc">${k.desc}</span>
         </div>
-        <div class="price">${owned ? (i === curIdx ? '使用中' : '已拥有') : '🪙 ' + k.cost}</div>`;
+        <div class="price">${equipped ? '使用中' : (owned ? '已拥有' : '🪙 ' + k.cost)}</div>`;
       drawKnifeIcon(card.querySelector('canvas'), k);
       if (!owned && state.coins >= k.cost) card.classList.add('afford');
-      card.disabled = owned;
+      // 已拥有但没装备 → 点了就换上；没买 → 点了就买
+      card.disabled = equipped;
       card.onclick = () => {
-        const res = R.purchase(state, 'knife', k.id);
-        if (res.ok) { SFX.buy(); updateHud(); renderShop(); persist(); }
+        if (!owned) {
+          const res = R.purchase(state, 'knife', k.id);
+          if (res.ok) { SFX.buy(); updateHud(); renderShop(); renderBag(); persist(); }
+          return;
+        }
+        const res = R.equipKnife(state, k.id);
+        if (res.ok) {
+          SFX.buy(); updateHud(); renderShop(); renderBag(); persist('换武器');
+          if (typeof toast === 'function') toast('已换上 <b>' + k.name + '</b>', 'weapon');
+        }
       };
       kList.appendChild(card);
     });
@@ -3069,6 +3412,8 @@
   function boot() {
     resize();
     window.addEventListener('resize', resize);
+    bindShopTabs();
+    bindBagTabs();
 
     // 标题页的头像：用新角色图
     const portrait = el('portrait');
@@ -3141,11 +3486,15 @@
       }
       const info = el('modeInfo');
       if (info) info.textContent = MODE_TIP[state.inputMode];
+
       for (const [id, mode] of [['btnModePc', 'pc'], ['btnModeTouch', 'touch']]) {
         const btn = el(id);
         if (btn) btn.classList.toggle('on', state.inputMode === mode);
       }
-      checkRotate();
+      // 手机模式给 body 加个类，方便 CSS 把面板排成单列（不改游戏逻辑）
+      if (document.body && document.body.classList) {
+        document.body.classList.toggle('ui-touch', t);
+      }
     }
     function setMode(m) {
       state.inputMode = (m === 'touch') ? 'touch' : 'pc';
@@ -3156,18 +3505,12 @@
     if (bm) bm.onclick = () => setMode(state.inputMode === 'touch' ? 'pc' : 'touch');
     const bp = el('btnModePc'); if (bp) bp.onclick = () => setMode('pc');
     const bt = el('btnModeTouch'); if (bt) bt.onclick = () => setMode('touch');
+    // 竖屏提示上的「先用电脑模式」：手机上竖屏时被提示盖住也能逃出来
 
-    // ---- 竖屏提示（只有手机模式才管）----
-    function checkRotate() {
-      const box = el('rotate');
-      if (!box) return;
-      const portrait = window.innerHeight > window.innerWidth;
-      const small = Math.min(window.innerWidth, window.innerHeight) < 820;
-      box.classList.toggle('show', state.inputMode === 'touch' && portrait && small);
-    }
-    window.addEventListener('resize', checkRotate);
-    window.addEventListener('orientationchange', () => setTimeout(checkRotate, 120));
-    checkRotate();
+
+    // 竖屏/横屏切换时重新算布局（手机版竖屏是原生支持的，不需要旋转）
+    window.addEventListener('resize', () => { resize(); });
+    window.addEventListener('orientationchange', () => setTimeout(resize, 200));
     applyMode();
 
     // 光污染开关：关闭 → 标准 → 拉满 → 关闭…
@@ -3228,6 +3571,7 @@
       // 新游戏：清空进度（剧情也重置，可以重新看一遍）
       state.coins = 0; state.totalCoins = 0;
       state.knifeId = 'rusty';
+      state.maxKnifeId = 'rusty';
       state.upgrades = { wide: 0, crit: 0, magnet: 0, gloves: 0, tank: 0 };
       state.perks = [];
       state.storySeen = [];
@@ -3249,6 +3593,7 @@
       // ---- 进度 ----
       state.coins = 0; state.totalCoins = 0;
       state.knifeId = 'rusty';
+      state.maxKnifeId = 'rusty';
       state.upgrades = { wide: 0, crit: 0, magnet: 0, gloves: 0, tank: 0 };
       state.perks = [];
       state.storySeen = [];
@@ -3291,6 +3636,17 @@
     const btnWipe2 = el('btnWipe2');
     if (btnWipe2) btnWipe2.onclick = wipe;
 
+    // 背包入口：HUD 图标 + 商店底部 + 标题页
+    const bagEntry = (id, from) => {
+      const b = el(id);
+      if (b) b.onclick = () => { SFX.unlock(); openBag(from); };
+    };
+    bagEntry('btnBag', 'play');
+    bagEntry('btnBagShop', 'shop');
+    bagEntry('btnBagTitle', 'title');
+    const btnBagClose = el('btnBagClose');
+    if (btnBagClose) btnBagClose.onclick = () => closeBag();
+
     el('btnResume').onclick = () => {
       closeShop();
       SFX.unlock();
@@ -3323,7 +3679,7 @@
 
     for (const t of ['types', 'items', 'achv', 'hall']) {
       const b = el('tab_' + t);
-      if (b) b.onclick = () => { state.codexTab = t; renderCodex(); };
+      if (b) b.onclick = () => { state.codexTab = t; state.codexDetail = null; renderCodex(); };
     }
     const bg1 = el('btnGacha1'); if (bg1) bg1.onclick = () => doGacha(1);
     const bg10 = el('btnGacha10'); if (bg10) bg10.onclick = () => doGacha(10);
@@ -3363,6 +3719,7 @@
       const rot = el('rotate');
       const paused = state.phase === 'title' || state.phase === 'shop'
         || state.phase === 'story' || state.phase === 'codex' || state.phase === 'report'
+        || state.phase === 'bag'
         || (rot && rot.classList.contains('show'));
       if (!paused) update(dt);
       else state.time += dt;
