@@ -36,6 +36,7 @@
   --r-xs: 12px;
 
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --noise: url("data:image/png;base64,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");
 }
 
 * { box-sizing: border-box; }
@@ -89,10 +90,11 @@ html, body {
 .hud-left { justify-content: flex-start; }
 .hud-right { justify-content: flex-end; }
 
+/* HUD 默认【不用】backdrop-filter：
+   它贴在一直在动的画面上，模糊要每帧重新合成，是最大的性能负担之一。
+   只有开启「毛玻璃 / 液态玻璃」材质时才上模糊（见文件末尾的材质段）。 */
 .pill, .airwrap, .coinbox, .icobtn {
-  background: var(--glass);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: rgba(20, 24, 32, 0.78);
 }
 
 .pill {
@@ -331,6 +333,81 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
   0% { opacity: 0; transform: scale(0.92); }
   100% { opacity: 1; transform: none; }
 }
+
+/* ==========================================================================
+   正反馈：破坏力 / 连击等级 / 一刀多杀
+   ========================================================================== */
+
+/* 破坏力：涨了就弹一下，旁边飘出涨幅 */
+.pill.power { position: relative; }
+.pill.power.bump { animation: powerbump 0.42s var(--ease); }
+@keyframes powerbump {
+  0% { transform: scale(1); }
+  38% { transform: scale(1.13); }
+  100% { transform: scale(1); }
+}
+.pdelta {
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ok);
+  margin-left: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.pdelta:empty { display: none; }
+
+/* 连击等级名字（跟着连击数换颜色） */
+.ctier { font-size: 11.5px; font-weight: 600; margin-left: 7px; }
+.ctier:empty { display: none; }
+
+/* 一刀多杀播报：干净、利落、快进快出
+   （三角洲那种感觉：不要圆润卡通，要细、要直、要脆） */
+.mkbadge {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  z-index: 35;
+  display: none;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 20px 7px 14px;
+  border-left: 3px solid var(--accent);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  will-change: transform, opacity;
+}
+.mkbadge.show { display: inline-flex; }
+.mkbadge b {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  color: #FFFFFF;
+  letter-spacing: -0.045em;
+}
+.mkbadge i {
+  font-style: normal;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-2);
+  letter-spacing: 0.5px;
+}
+.mkbadge::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+}
+
+/* 图鉴：还差几个 / 已集齐 */
+.codexleft { margin-left: 12px; font-size: 12.5px; color: var(--text-3); }
+.codexleft b { color: var(--gold); }
+.codexdone { margin-left: 12px; font-size: 12.5px; font-weight: 600; color: var(--gold); }
 
 /* ==========================================================================
    标题页
@@ -995,4 +1072,393 @@ body.ui-touch .shopscroll { max-height: none; }
     animation: none !important;
   }
   button, .fxbtn, .icobtn, .stab { transition: none; }
+}
+
+/* ==========================================================================
+   质感与背景装饰
+   （"没意义"但很有效：让平面不再死平，弹层背后有缓慢流动的光）
+   ========================================================================== */
+
+/* 面板：极淡噪点 + 顶部渐隐高光 */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--noise);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+}
+.panel::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 160px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+.panel > * { position: relative; z-index: 1; }
+
+/* 弹层背景：两团缓慢漂移的光斑 */
+.overlay::before {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  pointer-events: none;
+  background:
+    radial-gradient(36% 30% at 24% 20%, rgba(10, 132, 255, 0.18), transparent 68%),
+    radial-gradient(32% 28% at 76% 72%, rgba(191, 90, 242, 0.12), transparent 68%);
+  animation: drift 30s ease-in-out infinite alternate;
+}
+.overlay > * { position: relative; }
+@keyframes drift {
+  0% { transform: translate3d(-2%, -1.5%, 0) scale(1); }
+  100% { transform: translate3d(2.5%, 2%, 0) scale(1.1); }
+}
+
+/* 分段控件：会滑动的指示块（iOS 标志性效果） */
+.shoptabs { position: relative; }
+.shoptabs::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: var(--seg-w, 0px);
+  border-radius: 9px;
+  background: var(--surface-3);
+  transform: translateX(var(--seg-x, 0px));
+  transition: transform 0.34s var(--ease), width 0.34s var(--ease);
+  pointer-events: none;
+}
+.shoptabs .stab { position: relative; z-index: 1; }
+.shoptabs .stab.on { background: transparent; }
+
+/* 列表按压：iOS 那种按下变暗 */
+.card, .bagrow, .codexcard, .trendrow, .hallrow {
+  -webkit-tap-highlight-color: transparent;
+}
+.card:active, .bagrow[data-equip]:active, .codexcard.clickable:active {
+  background: rgba(255, 255, 255, 0.10);
+  transition: background 0.04s;
+}
+
+/* 金币数字滚动 */
+.coinbox b, .wallet b { display: inline-block; min-width: 1.6em; text-align: right; }
+
+/* 可滚动区域上下渐隐（提示还有内容） */
+.shopscroll { --fade: 18px; }
+
+/* 面板进出：关闭时也来一下（JS 加 .closing） */
+@keyframes panelOut {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.97) translateY(8px); }
+}
+@keyframes overlayOut { from { opacity: 1; } to { opacity: 0; } }
+.overlay.closing { animation: overlayOut 0.16s ease-in forwards; }
+.overlay.closing > .panel { animation: panelOut 0.18s ease-in forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay::before { animation: none; }
+  .shoptabs::before { transition: none; }
+}
+
+/* ==========================================================================
+   材质系统：实心 / 毛玻璃 / 液态玻璃
+   默认「实心」保持原来的观感；后两档是可选的。
+
+   ★ 可读性优先原则（玻璃最容易毁掉的就是可读性）：
+     1) 面板永远保留一层"底scrim"（深色渐变），文字不会直接压在花哨背景上
+     2) 玻璃模式下文字加极轻的描边阴影，边界始终清楚
+     3) 面板块的底色不透明度有下限（不低于 0.45），不会糊成一片
+     4) HUD 胶囊贴在游戏画面上，用比面板更高的不透明度
+     5) 浏览器不支持 backdrop-filter 时由 JS 强制回落成实心
+   ========================================================================== */
+
+:root {
+  /* 材质参数：默认实心 */
+  --mat-bg: #1C1C1E;
+  --mat-bg2: rgba(28, 28, 30, 0.98);
+  --mat-blur: 0px;
+  --mat-sat: 100%;
+  --mat-scrim-top: rgba(0, 0, 0, 0);
+  --mat-scrim-bot: rgba(0, 0, 0, 0);
+  --mat-hud-bg: rgba(28, 28, 30, 0.82);
+  --mat-hud-blur: 20px;
+  --mat-text-shadow: none;
+  --mat-border: 0px solid transparent;
+  --mat-inset: none;
+  --mat-outer: none;
+}
+
+/* ---------------- 毛玻璃 ---------------- */
+body.mat-glass {
+  --mat-bg: rgba(28, 28, 30, 0.60);
+  --mat-bg2: rgba(28, 28, 30, 0.60);
+  --mat-blur: 26px;
+  --mat-sat: 180%;
+  /* 关键：底 scrim。深色渐变垫在文字下面，保证对比度 */
+  --mat-scrim-top: rgba(6, 10, 18, 0.30);
+  --mat-scrim-bot: rgba(6, 10, 18, 0.44);
+  --mat-hud-bg: rgba(20, 24, 32, 0.72);
+  --mat-hud-blur: 22px;
+  --mat-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --mat-border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* ---------------- 液态玻璃 ---------------- */
+body.mat-liquid {
+  --mat-bg: rgba(30, 34, 44, 0.46);
+  --mat-bg2: rgba(30, 34, 44, 0.46);
+  --mat-blur: 40px;
+  --mat-sat: 200%;
+  --mat-scrim-top: rgba(6, 10, 18, 0.34);
+  --mat-scrim-bot: rgba(6, 10, 18, 0.48);
+  --mat-hud-bg: rgba(22, 26, 36, 0.62);
+  --mat-hud-blur: 30px;
+  --mat-text-shadow: 0 1px 3px rgba(0, 0, 0, 0.62);
+  --mat-border: 1px solid rgba(255, 255, 255, 0.18);
+  /* 液态玻璃的灵魂：边缘的折射高光 + 内发光 + 悬浮投影 */
+  --mat-inset:
+    inset 0 1px 0 rgba(255, 255, 255, 0.46),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.10),
+    inset 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset -1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 70px rgba(130, 180, 255, 0.07);
+  --mat-outer: 0 28px 80px rgba(0, 0, 0, 0.58), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------------- 把材质套到面板上 ---------------- */
+.panel {
+  background-color: var(--mat-bg);
+  background-image: linear-gradient(180deg, var(--mat-scrim-top), var(--mat-scrim-bot));
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: var(--mat-border);
+  box-shadow: var(--mat-inset), var(--mat-outer);
+  transition: background-color 0.35s var(--ease), backdrop-filter 0.35s var(--ease),
+    box-shadow 0.35s var(--ease), border-color 0.35s var(--ease);
+}
+
+/* 弹层背板：玻璃模式下让游戏画面透出来一点，玻璃才有"折射感" */
+.overlay {
+  transition: background 0.35s var(--ease), backdrop-filter 0.35s var(--ease);
+}
+body.mat-glass .overlay { background: rgba(0, 0, 0, 0.48); backdrop-filter: blur(6px); }
+/* 液态玻璃的背板模糊在下面「液态玻璃：真实折射」那一段统一设置，这里只管背景 */
+body.mat-liquid .overlay { background: rgba(0, 0, 0, 0.30); }
+
+/* HUD 贴在游戏画面上，不透明度要更高，不然数字看不清 */
+body.mat-glass .pill,
+body.mat-glass .airwrap,
+body.mat-glass .coinbox,
+body.mat-glass .icobtn,
+body.mat-liquid .pill,
+body.mat-liquid .airwrap,
+body.mat-liquid .coinbox,
+body.mat-liquid .icobtn {
+  background: var(--mat-hud-bg);
+  backdrop-filter: blur(var(--mat-hud-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-hud-blur)) saturate(var(--mat-sat));
+  text-shadow: var(--mat-text-shadow);
+  border: var(--mat-border);
+  transition: background 0.35s var(--ease), backdrop-filter 0.35s var(--ease);
+}
+body.mat-liquid .pill,
+body.mat-liquid .airwrap,
+body.mat-liquid .coinbox,
+body.mat-liquid .icobtn {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36), 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* 弹条同理 */
+body.mat-glass .toastitem,
+body.mat-liquid .toastitem {
+  background: var(--mat-hud-bg);
+  backdrop-filter: blur(var(--mat-hud-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-hud-blur)) saturate(var(--mat-sat));
+}
+
+/* ★ 可读性：玻璃模式下给文字加极轻的阴影，边界始终清楚 */
+body.mat-glass .panel,
+body.mat-liquid .panel {
+  text-shadow: var(--mat-text-shadow);
+}
+/* 但彩色/高亮文字不再叠加，避免发虚 */
+body.mat-glass .panel .wallet,
+body.mat-liquid .panel .wallet,
+body.mat-glass .panel .pdelta,
+body.mat-liquid .panel .pdelta {
+  text-shadow: none;
+}
+
+/* 液态玻璃：缓慢扫过的高光（"液"的感觉） */
+/* 流光走 transform（合成器动画），不动 background-position（那会触发重绘） */
+@keyframes liquidSheen {
+  0% { transform: translateX(-120%) skewX(-12deg); }
+  100% { transform: translateX(320%) skewX(-12deg); }
+}
+body.mat-liquid .panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.09) 38%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.09) 62%,
+    transparent 100%);
+  will-change: transform;
+  animation: liquidSheen 8.5s linear infinite;
+}
+/* 玻璃模式保留原来的顶部渐隐高光（液态用流光代替） */
+body.mat-glass .panel::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent);
+  height: 160px;
+  animation: none;
+  background-size: auto;
+}
+
+/* 液态玻璃：面板外圈再加一层柔光（像镜片边缘的辉光） */
+body.mat-liquid .panel {
+  position: relative;
+}
+body.mat-liquid .panel::before {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ---------------- 液态玻璃：真实折射 ---------------- */
+.lgdefs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 分工：
+     弹层背板 → 普通模糊（全屏，面积大，不用滤镜，便宜）
+     面板本体 → 液态玻璃折射（就是商店 / 图鉴 / 背包这些"一块玻璃"）
+     按钮胶囊 → 轻折射（面积小，用 lg-dist-sm） */
+
+/* 全屏背板：只模糊，不折射 */
+body.mat-liquid .overlay {
+  backdrop-filter: blur(4px) saturate(170%);
+  -webkit-backdrop-filter: blur(4px) saturate(170%);
+}
+
+/* 面板：先给普通模糊做兜底，再给带 url() 的折射版本 */
+body.mat-liquid .panel {
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+}
+body.mat-liquid.lg-refract .panel {
+  backdrop-filter: url(#lg-dist) blur(30px) saturate(190%);
+  -webkit-backdrop-filter: url(#lg-dist) blur(30px) saturate(190%);
+}
+
+/* 按钮和胶囊：轻折射。
+   只挑"主要控件"，不给每张卡片的按钮都上，免得几百个元素一起做滤镜。 */
+body.mat-liquid.lg-refract button.primary,
+body.mat-liquid.lg-refract button.ghost,
+body.mat-liquid.lg-refract .fxbtn,
+body.mat-liquid.lg-refract .stab,
+body.mat-liquid.lg-refract .wallet {
+  backdrop-filter: url(#lg-dist-sm) blur(10px) saturate(180%);
+  -webkit-backdrop-filter: url(#lg-dist-sm) blur(10px) saturate(180%);
+}
+/* HUD 贴在一直在动的画面上，用轻折射 + 较高不透明度，兼顾成本和可读性 */
+body.mat-liquid.lg-refract .pill,
+body.mat-liquid.lg-refract .airwrap,
+body.mat-liquid.lg-refract .coinbox,
+body.mat-liquid.lg-refract .icobtn {
+  backdrop-filter: url(#lg-dist-sm) blur(16px) saturate(180%);
+  -webkit-backdrop-filter: url(#lg-dist-sm) blur(16px) saturate(180%);
+}
+
+/* 玻璃边缘的折射亮边：用 conic 渐变描边模拟光在玻璃边缘的弯折 */
+body.mat-liquid .panel {
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+body.mat-liquid .panel > .edge,
+body.mat-glass .panel > .edge { display: none; }
+
+/* 更讲究的边缘高光：左上最亮，右下最暗，侧面各有一点 */
+body.mat-liquid .panel {
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.50),
+    inset 1.5px 0 0 rgba(255, 255, 255, 0.16),
+    inset -1.5px 0 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 60px rgba(140, 190, 255, 0.06),
+    0 30px 90px rgba(0, 0, 0, 0.60),
+    0 0 0 1px rgba(255, 255, 255, 0.10);
+}
+
+/* 色散：极轻的冷暖错位，像棱镜边缘（几乎看不见，但"高级"就藏在这种地方） */
+body.mat-liquid .panel::before {
+  box-shadow:
+    inset 1px 1px 0 rgba(150, 220, 255, 0.16),
+    inset -1px -1px 0 rgba(255, 180, 220, 0.10);
+}
+
+/* 材质选择按钮 */
+.matrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.matsample {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.matsample.s-solid { background: #1C1C1E; }
+.matsample.s-glass { background: rgba(90, 130, 200, 0.55); backdrop-filter: blur(4px); }
+.matsample.s-liquid {
+  background: linear-gradient(140deg, rgba(150, 200, 255, 0.75), rgba(60, 90, 150, 0.5));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* 低性能时自动退回实心（JS 加 .no-glass） */
+body.no-glass {
+  --mat-bg: #1C1C1E;
+  --mat-blur: 0px;
+  --mat-scrim-top: rgba(0, 0, 0, 0);
+  --mat-scrim-bot: rgba(0, 0, 0, 0);
+}
+body.no-glass .panel,
+body.no-glass .overlay,
+body.no-glass .pill,
+body.no-glass .airwrap,
+body.no-glass .coinbox,
+body.no-glass .icobtn,
+body.no-glass .toastitem {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.no-glass .panel::after { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  body.mat-liquid .panel::after { animation: none; }
 }

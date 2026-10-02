@@ -120,6 +120,8 @@ if (!rules) throw new Error('rules.js did not expose WhaleRules');
 console.log('rules loaded:', Object.keys(rules).length, 'exports');
 
 // scripts assign onto `window`, so read them back from the stub
+vm.runInContext(fs.readFileSync(path.join(GAME, 'js', 'weapons.js'), 'utf8'), context, { filename: 'weapons.js' });
+vm.runInContext(fs.readFileSync(path.join(GAME, 'js', 'gameart.js'), 'utf8'), context, { filename: 'gameart.js' });
 vm.runInContext(fs.readFileSync(path.join(GAME, 'js', 'assets.js'), 'utf8'), context, { filename: 'assets.js' });
 const assets = windowStub.WHALE_ASSETS;
 if (!assets || !assets.markPath || !assets.anchors.length) throw new Error('assets.js incomplete');

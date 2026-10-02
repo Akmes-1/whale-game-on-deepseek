@@ -11,13 +11,36 @@
 <div id="app">
   <canvas id="stage"></canvas>
 
+  <!-- 液态玻璃用的 SVG 滤镜（不可见；feDisplacementMap 做真实折射） -->
+  <svg class="lgdefs" aria-hidden="true" focusable="false">
+    <defs>
+      <!-- 主折射：分形噪声 → 平滑 → 位移 -->
+      <filter id="lg-dist" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.0055 0.0055" numOctaves="2" seed="11" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="3.2" result="softNoise" />
+        <feDisplacementMap in="SourceGraphic" in2="softNoise" scale="26"
+          xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <!-- 轻折射：给 HUD 小胶囊用，尺度更小、更省 -->
+      <filter id="lg-dist-sm" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.02 0.02" numOctaves="1" seed="4" result="n2" />
+        <feGaussianBlur in="n2" stdDeviation="2" result="s2" />
+        <feDisplacementMap in="SourceGraphic" in2="s2" scale="7"
+          xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+
   <!-- ------------------------------------------------------------------ HUD -->
   <div class="hud">
     <div class="hud-left">
       <div class="pill"><span class="k">第</span><b id="round">1</b><span class="k">关</span></div>
       <div class="pill"><span class="k">剩</span><b id="left">0</b><span class="k">个藤壶</span></div>
       <div class="pill"><span class="k">刀</span><b id="knifeName">生锈小刀</b></div>
-      <div class="pill combo"><b id="combo"></b></div>
+      <div class="pill power" id="powerPill">
+        <span class="k">破坏力</span><b id="power">0</b><i id="powerDelta" class="pdelta"></i>
+      </div>
+      <div class="pill combo"><b id="combo"></b><span id="comboTier" class="ctier"></span></div>
     </div>
     <div class="hud-right">
       <div class="airwrap" title="氧气：用完这轮就结束">
@@ -28,6 +51,7 @@
       <div class="coinbox"><span class="coin">🪙</span><b id="coins">0</b></div>
       <button id="btnDev" class="icobtn hidden" title="开发者控制台（只在 ?dev=1 时出现）">🛠</button>
       <button id="btnBag" class="icobtn" title="背包：查看并切换武器">🎒</button>
+      <button id="btnMat" class="icobtn" title="材质：实心 / 毛玻璃 / 液态玻璃">⬛</button>
       <button id="btnMode" class="icobtn" title="操作模式：PC / 手机">🖱</button>
       <button id="btnFx" class="icobtn" title="光污染模式：点击切换 关闭 / 标准 / 拉满">✨</button>
       <button id="btnSound" class="icobtn" title="音效开关">🔇</button>
@@ -63,6 +87,13 @@
         <button id="btnFxTitle2" class="fxbtn" data-fx="normal">标准</button>
         <button id="btnFxTitle3" class="fxbtn" data-fx="max">拉满</button>
         <span id="fxInfo" class="fxnow">光污染：拉满</span>
+      </div>
+      <div class="matrow">
+        <span class="fxlab">界面材质</span>
+        <button id="btnMat1" class="fxbtn on" data-mat="solid"><i class="matsample s-solid"></i>实心</button>
+        <button id="btnMat2" class="fxbtn" data-mat="glass"><i class="matsample s-glass"></i>毛玻璃</button>
+        <button id="btnMat3" class="fxbtn" data-mat="liquid"><i class="matsample s-liquid"></i>液态玻璃</button>
+        <span id="matInfo" class="fxnow">实心：最清楚、最省性能</span>
       </div>
       <div class="fxrow">
         <button id="btnCodexTitle" class="fxbtn">图鉴</button>
@@ -141,6 +172,9 @@
       </div>
     </div>
   </div>
+
+  <!-- 一刀多杀播报（三角洲那种干净利落的） -->
+  <div id="mkBadge" class="mkbadge"><b></b><i></i></div>
 
   <!-- 成就 / 收集 弹条 -->
   <div id="toast" class="toast"></div>
@@ -235,6 +269,9 @@
 <script src="js/lore.js"></script>
 <script src="js/save.js"></script>
 <script src="js/assets.js"></script>
+<script src="js/weapons.js"></script>
+  <script src="js/gameart.js"></script>
+  <script src="js/juice.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

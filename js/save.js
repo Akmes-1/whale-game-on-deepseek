@@ -32,6 +32,7 @@
       bestScore: 0,     // 本机最高分
       maxKnifeId: 'rusty', // 拥有过的最高档武器（切换武器不会丢）
       inputMode: 'pc',  // 操作模式：'pc' 鼠标 / 'touch' 手机
+      material: 'solid', // 界面材质：'solid' | 'glass' | 'liquid'
       savedAt: 0,
     };
   }
@@ -84,6 +85,7 @@
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements.slice(0, 60) : [],
       bestScore: Math.max(0, Number(parsed.bestScore) || 0),
       inputMode: parsed.inputMode === 'touch' ? 'touch' : 'pc',
+      material: (parsed.material === 'glass' || parsed.material === 'liquid') ? parsed.material : 'solid',
       savedAt: Number(parsed.savedAt) || 0,
     };
     return { ok: true, reason: 'loaded', data };
@@ -109,6 +111,7 @@
       achievements: Array.isArray(data.achievements) ? data.achievements.slice(0, 60) : [],
       bestScore: Math.max(0, Math.round(data.bestScore || 0)),
       inputMode: data.inputMode === 'touch' ? 'touch' : 'pc',
+      material: (data.material === 'glass' || data.material === 'liquid') ? data.material : 'solid',
       savedAt: Date.now(),
     };
     try {

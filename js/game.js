@@ -133,6 +133,7 @@
     codexDetail: null,     // 图鉴里正在看哪一个藤壶的详情（typeId）
     codexOrigin: null,     // 从哪张卡展开的（做动画用）
     shopTab: 'trend',      // 商店页签：trend | gacha | knife | perk | up
+    material: 'solid',     // 材质：'solid' 实心 | 'glass' 毛玻璃 | 'liquid' 液态玻璃
     // ---- 内容层：收集 / 图鉴 / 成就 / 最高分 ----
     items: {},             // 掉落物收集：{ itemId: 数量 }
     killedByType: {},      // 藤壶图鉴：{ typeId: 累计击杀 }
@@ -161,6 +162,12 @@
     floaters: [],
     combo: 0,
     comboTimer: 0,
+    bestCombo: 0,          // 本局最高连击
+    shotSeq: 0,            // 每发武器一个编号（用来判断"一刀多杀"）
+    mkShot: -1, mkCount: 0, // 当前这一刀已经杀了几只
+    mkBadge: null,         // 多杀播报 { n, life, pop }
+    powerPop: 0,           // 破坏力变化时的弹一下
+    powerDelta: 0,
     cool: 0,
     air: 1,                // 1 = full tank
     maxAir: 26,
@@ -258,6 +265,11 @@
     state.knives.length = 0;
     state.coinsFly.length = 0;
     state.combo = 0;
+    state.bestCombo = 0;
+    state.mkBadge = null;
+    state.mkShot = -1; state.mkCount = 0;
+    state.powerPop = 0; state.powerDelta = 0;
+    state._powerPrev = undefined;
     // 内容层：重置本局统计（成就要用）
     state.run = {
       killed: {}, items: {}, splitCount: 0, missStreak: 0, maxMissStreak: 0,
@@ -332,13 +344,16 @@
     const ux = dx / len, uy = dy / len;
     const thrust = s.kind === 'thrust';
     const ang = Math.atan2(dy, dx);
+    state.shotSeq = (state.shotSeq || 0) + 1;
     state.knives.push({
+      shotId: state.shotSeq,
       x: gun.x, y: gun.y,
       // 直刺更快、不旋转；飞刀慢一点、会旋转
       vx: ux * (thrust ? 2600 : 1750),
       vy: uy * (thrust ? 2600 : 1750),
       rot: ang,
       spin: thrust ? 0 : 15,
+      wid: (s.knife && s.knife.id) || state.knifeId,
       kind: s.kind,
       pierce: s.pierce,
       pierceFalloff: s.pierceFalloff,
@@ -348,6 +363,13 @@
       fx: s.fx,
       life: 0, stuck: false,
     });
+    // 后坐 + 炮口弹一下（发射的"跟随动作"）
+    if (J) {
+      recoil.snap(-1);
+      recoil.set(0);
+      muzzlePop.snap(1);
+      muzzlePop.set(0);
+    }
     // 音效：刀是刀风，剑是剑鸣（圣剑更亮）
     if (thrust) { if (s.fx === 'holy') SFX.shootHoly(); else SFX.shootSword(); }
     else SFX.throwKnife();
@@ -395,6 +417,14 @@
     if (dying != null) g.globalAlpha = Math.max(0, 1 - dying * 1.25);
     g.translate(b.x, b.y);
     g.rotate((b.seed % 100) / 100 * Math.PI * 2);
+    // 受击挤压拉伸（高级感的来源之一：形变）
+    if (b.squash && b.squash.t < b.squash.dur) {
+      const kk = 1 - b.squash.t / b.squash.dur;
+      const amt = kk * kk * 0.34;
+      g.rotate(b.squash.ang);
+      g.scale(1 + amt, 1 - amt * 0.72);
+      g.rotate(-b.squash.ang);
+    }
 
     // damage flash（只有被命中的那一两帧才用 shadowBlur）
     if (b.hit > 0) {
@@ -445,82 +475,26 @@
       g.restore();
     }
 
-    // shell body (irregular cone)
-    const sides = 12;
-    g.beginPath();
-    for (let i = 0; i <= sides; i++) {
-      const a = (i / sides) * Math.PI * 2;
-      const wob = 1 + 0.10 * Math.sin(a * 3 + b.seed * 0.001) + 0.06 * Math.sin(a * 5);
-      const rr = s * (0.52 + 0.48 * (1 - Math.abs(Math.cos(a)) * 0.35)) * wob;
-      const x = Math.cos(a) * rr * 1.08, y = Math.sin(a) * rr * 0.66 + s * 0.16;
-      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.closePath();
-    // 性能：卡的时候（budget 降低）用纯色代替渐变，几十个藤壶能省下大量渐变对象
-    // 壳的颜色跟种类走：这样不同藤壶一眼能区分开
-    const base = b.tintColor || P.shellB;
-    if (PERF.budget > 0.6) {
-      const grad = g.createLinearGradient(0, -s, 0, s);
-      grad.addColorStop(0, shade(base, 0.34));
-      grad.addColorStop(0.55, base);
-      grad.addColorStop(1, shade(base, -0.32));
-      g.fillStyle = grad;
+    // ---- 壳：交给游戏内美术模块（层叠壳板 + 生长纹 + 盖板）----
+    const base = b.tintColor || P.shellB;      // 壳色跟种类走，一眼能区分
+    const shellOpen = s * (0.30 + 0.10 * dmg);
+    if (GA && GA.barnacleShell) {
+      GA.barnacleShell(g, {
+        s, seed: b.seed, tint: base, dead: !!b.dead, dmg,
+        simple: PERF.budget <= 0.6,
+        noAo: PERF.budget <= 0.9,
+      });
     } else {
+      // 模块没加载时的兜底
+      g.beginPath();
+      g.ellipse(0, s * 0.1, s, s * 0.62, 0, 0, Math.PI * 2);
       g.fillStyle = base;
-    }
-    g.fill();
-    g.strokeStyle = 'rgba(70,60,48,0.55)';
-    g.lineWidth = Math.max(1, s * 0.09);
-    g.stroke();
-
-    // vertical ridges
-    g.strokeStyle = 'rgba(120,108,90,0.45)';
-    g.lineWidth = Math.max(0.8, s * 0.055);
-    for (let i = 0; i < 6; i++) {
-      const a = -Math.PI * 0.85 + (i / 5) * Math.PI * 1.7;
-      g.beginPath();
-      g.moveTo(Math.cos(a) * s * 0.30, Math.sin(a) * s * 0.20 + s * 0.10);
-      g.lineTo(Math.cos(a) * s * 0.92, Math.sin(a) * s * 0.60 + s * 0.20);
-      g.stroke();
-    }
-
-    // top opening: jagged ring, dark inside
-    const open = s * (0.30 + 0.10 * dmg);
-    g.beginPath();
-    const teeth = 9;
-    for (let i = 0; i <= teeth; i++) {
-      const a = (i / teeth) * Math.PI * 2;
-      const jag = (i % 2 === 0 ? 1.0 : 0.78) * (1 + 0.12 * Math.sin(a * 4 + b.seed));
-      const x = Math.cos(a) * open * jag, y = Math.sin(a) * open * 0.68 * jag - s * 0.42;
-      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.closePath();
-    if (b.dead) {
-      g.fillStyle = P.cut;
       g.fill();
-      g.strokeStyle = 'rgba(120,90,60,0.5)';
-      g.lineWidth = Math.max(1, s * 0.08);
-      g.stroke();
-      // scooped-out highlight
       g.beginPath();
-      g.ellipse(0, -s * 0.42, open * 0.5, open * 0.32, 0, 0, Math.PI * 2);
-      g.fillStyle = P.meat;
-      g.globalAlpha = 0.55;
-      g.fill();
-      g.globalAlpha = 1;
-    } else {
-      g.fillStyle = P.shellDark;
-      g.fill();
-      g.strokeStyle = 'rgba(230,214,190,0.75)';
-      g.lineWidth = Math.max(1, s * 0.07);
-      g.stroke();
-      // inner rim
-      g.beginPath();
-      g.ellipse(0, -s * 0.44, open * 0.62, open * 0.40, 0, 0, Math.PI * 2);
+      g.ellipse(0, -s * 0.42, shellOpen * 0.8, shellOpen * 0.5, 0, 0, Math.PI * 2);
       g.fillStyle = '#3A342C';
       g.fill();
     }
-
     // 精英藤壶：头顶装饰
     if (b.elite && b.eliteType === 'hair') {
       // 戴头发的：头发压在藤壶上，飘动 + 金色光晕（一眼看出是「爆金币」的那种）
@@ -633,6 +607,11 @@
 
   function drawWhale(g, dt) {
     const w = state.whale;
+    // 呼吸：极缓慢的伸缩，让鲸鱼看起来是活的
+    if (whaleBreath) {
+      whaleBreath.set(1 + Math.sin(state.time * 1.35) * 0.012 + (w.hit > 0 ? -0.03 * w.hit : 0));
+      whaleBreath.step(dt || 0.016);
+    }
     // 清干净后鲸鱼会缩小消失（celebrate），随后进入 thank/leaving 阶段就完全不再画鲸鱼
     const cleaned = state.phase === 'celebrate';
     if (state.phase === 'thank' || state.phase === 'leaving' || state.phase === 'shop') return;
@@ -683,6 +662,24 @@
       g.fill(whalePath, 'evenodd');
     }
     g.restore();
+
+    // 水面焦散：光带在鲸鱼身上缓慢流动。
+    // 裁在鲸鱼轮廓里，不然光带会飘到水面上；卡顿时自动减弱或跳过。
+    // 焦散要开 clip + 20 条描边，比较贵：性能一般时隔帧画，很差时直接不画
+    const causticTick = ((state._cTick = (state._cTick || 0) + 1) & 1) === 0;
+    if (GA && GA.caustics && !fxOff() && whaleReady && PERF.budget > 0.55
+      && (PERF.budget > 0.85 || causticTick)) {
+      g.save();
+      if (g.clip) g.clip(whalePath);
+      g.translate(MARK.w / 2, MARK.h / 2);
+      GA.caustics(g, {
+        w: MARK.w * 1.5,
+        h: MARK.h * 1.5,
+        time: state.time,
+        strength: fxScale() * (PERF.budget > 0.75 ? 1 : 0.5),
+      });
+      g.restore();
+    }
 
     // 图片本身已经带好颜色，不再叠加渐变（避免盖住用户的图）
 
@@ -853,6 +850,22 @@
   function drawKnives(g, dt) {
     for (const k of state.knives) {
       const isSword = k.kind === 'thrust';
+      // ---- 残影：高速飞行的武器拖出几帧半透明影子（跟随动作）----
+      if (J && !k.stuck && k.kind === 'thrust' && WA && WA.draw && PERF.budget > 0.8) {
+        if (!k.trail) k.trail = new J.Trail(3);
+        k.trail.push(k.x, k.y, k.rot + k.life * k.spin);
+        const pts = k.trail.pts;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p = pts[i];
+          const a = (i + 1) / pts.length * 0.22;
+          g.save();
+          g.globalAlpha = a;
+          g.translate(p.x, p.y);
+          g.rotate(p.rot);
+          WA.draw(g, k.wid || state.knifeId, { len: k.blade });
+          g.restore();
+        }
+      }
       g.save();
       g.translate(k.x, k.y);
       g.rotate(k.rot + (k.stuck ? 0 : k.life * k.spin));
@@ -892,49 +905,12 @@
         g.lineTo(L * 0.98, 0);
         g.stroke();
         g.restore();
-        // 剑：细长剑身 + 护手 + 剑柄 + 剑尖
-        const grad = g.createLinearGradient(0, -L * 0.12, 0, L * 0.12);
-        grad.addColorStop(0, '#FFFFFF');
-        grad.addColorStop(0.45, k.crit ? '#FFE9A8' : '#DCE6F5');
-        grad.addColorStop(1, '#8E9BB0');
-        g.beginPath();
-        g.moveTo(-L * 0.06, -L * 0.075);
-        g.lineTo(L * 0.82, -L * 0.05);
-        g.lineTo(L * 1.0, 0);
-        g.lineTo(L * 0.82, L * 0.05);
-        g.lineTo(-L * 0.06, L * 0.075);
-        g.closePath();
-        g.fillStyle = grad;
-        g.fill();
-        g.strokeStyle = 'rgba(30,40,60,0.55)';
-        g.lineWidth = 1.4;
-        g.stroke();
-        // 护手
-        g.fillStyle = P.gold;
-        g.beginPath();
-        g.roundRect(-L * 0.08, -L * 0.16, L * 0.06, L * 0.32, 3);
-        g.fill();
-        // 剑柄
-        g.fillStyle = '#43325A';
-        g.beginPath();
-        g.roundRect(-L * 0.40, -L * 0.05, L * 0.32, L * 0.10, 4);
-        g.fill();
-        g.fillStyle = P.gold;
-        g.beginPath();
-        g.arc(-L * 0.42, 0, L * 0.055, 0, Math.PI * 2);
-        g.fill();
-        // 命中瞬间的剑光
-        if (k.hitIds.length) {
-          g.globalAlpha = 0.5;
-          g.strokeStyle = '#FFFFFF';
-          g.lineWidth = 2.5;
-          g.beginPath();
-          g.moveTo(0, -L * 0.25);
-          g.lineTo(L * 0.9, -L * 0.1);
-          g.stroke();
-        }
+      }
+      // ---- 武器本体：交给武器美术模块（投掷和穿刺都画，每把形态都不一样）----
+      // ★ 注意：这一段必须在 if (isSword) 外面，不然投掷类（法棍/海星/飞刀）会什么都不画
+      if (WA && WA.draw) {
+        WA.draw(g, k.wid || state.knifeId, { len: L, crit: k.crit });
       } else {
-        // 刀：原来的样式
         g.beginPath();
         g.moveTo(-L * 0.12, -L * 0.15);
         g.lineTo(L * 0.62, -L * 0.10);
@@ -942,19 +918,19 @@
         g.lineTo(L * 0.62, L * 0.10);
         g.lineTo(-L * 0.12, L * 0.15);
         g.closePath();
-        const bg = g.createLinearGradient(0, -L * 0.2, 0, L * 0.2);
-        bg.addColorStop(0, '#FFFFFF');
-        bg.addColorStop(0.5, k.crit ? '#FFE9A8' : '#D7DEEA');
-        bg.addColorStop(1, '#8E9BB0');
-        g.fillStyle = bg;
+        g.fillStyle = '#D7DEEA';
         g.fill();
-        g.strokeStyle = 'rgba(30,40,60,0.6)';
-        g.lineWidth = 1.6;
-        g.stroke();
-        g.fillStyle = '#6B4A2F';
+      }
+      // 命中瞬间的剑光（特效，不随武器变）
+      if (k.hitIds.length && k.kind === 'thrust') {
+        g.globalAlpha = 0.5;
+        g.strokeStyle = '#FFFFFF';
+        g.lineWidth = 2.5;
         g.beginPath();
-        g.roundRect(-L * 0.62, -L * 0.11, L * 0.5, L * 0.22, L * 0.06);
-        g.fill();
+        g.moveTo(0, -L * 0.25);
+        g.lineTo(L * 0.9, -L * 0.1);
+        g.stroke();
+        g.globalAlpha = 1;
       }
       g.restore();
     }
@@ -987,6 +963,25 @@
     if (state.cool > 0) state.cool = Math.max(0, state.cool - dt);
     if (state.whale.hit > 0) state.whale.hit = Math.max(0, state.whale.hit - dt * 4);
     if (state.comboTimer > 0) { state.comboTimer -= dt; if (state.comboTimer <= 0) state.combo = 0; }
+    // 多杀播报的淡出 + 弹一下
+    if (state.mkBadge) {
+      state.mkBadge.life -= dt;
+      state.mkBadge.pop = Math.max(0, state.mkBadge.pop - dt * 5.5);
+      if (state.mkBadge.life <= 0) state.mkBadge = null;
+    }
+    if (state.powerPop > 0) state.powerPop = Math.max(0, state.powerPop - dt * 1.6);
+    // 受击挤压的计时
+    for (const b of state.barnacles) {
+      if (b.squash && b.squash.t < b.squash.dur) b.squash.t += dt;
+    }
+    refreshMkBadge();
+    // 性能档位变化时，玻璃的开关跟着变（每 90 帧看一次就够，不用每帧改 DOM）
+    if ((state._matTick = (state._matTick || 0) + 1) % 90 === 0) {
+      const want = PERF.budget <= 0.7;
+      const has = document.body && document.body.classList && document.body.classList.contains('no-glass');
+      if (want !== !!has) applyMaterial();
+    }
+    stepCoinRoll(dt);
     for (const b of state.barnacles) {
       if (b.hit > 0) b.hit = Math.max(0, b.hit - dt * 3);
       // 被清掉的藤壶播放"缩小+淡出"，放完就彻底不再绘制
@@ -1205,8 +1200,25 @@
       const hx = VW - 132, hy = 40;
       if (Math.hypot(hx - c.x, hy - c.y) < st.magnetRadius + c.t * 260) {
         const dx = hx - c.x, dy = hy - c.y, l = Math.hypot(dx, dy) || 1;
-        const sp = 420 + c.t * 700;
-        c.x += (dx / l) * sp * dt; c.y += (dy / l) * sp * dt;
+        const ux = dx / l, uy = dy / l;
+        // 吸附不是匀速直线，而是：
+        //   ① 越接近吸得越快（指数加速）
+        //   ② 带一点侧向弧，随接近衰减 → 金币是"拐着弯"飞进去的
+        const sp = 520 + c.t * 980;
+        if (c.curve === undefined) c.curve = (Math.random() - 0.5) * 220;   // 所有金币生成点共用
+        const curve = c.curve * Math.max(0, 1 - c.t * 0.85) / 42;
+        c.x += (ux * sp - uy * curve) * dt;
+        c.y += (uy * sp + ux * curve) * dt;
+        c.vx = ux * sp; c.vy = uy * sp;         // 让拖尾朝向正确
+        // 飞行途中留一点星尘
+        if (J && c.t > 0.12 && state.particles.length < PERF.maxParticles - 2 && Math.random() < 0.22) {
+          state.particles.push({
+            x: c.x + (Math.random() - 0.5) * 8, y: c.y + (Math.random() - 0.5) * 8,
+            vx: -c.vx * 0.05, vy: -c.vy * 0.05,
+            life: 0.22, max: 0.22, r: c.big ? 2.6 : 1.7,
+            c: Math.random() < 0.5 ? '#FFE9A8' : '#FFFFFF',
+          });
+        }
       } else {
         c.vy += 900 * dt;
         c.x += c.vx * dt; c.y += c.vy * dt;
@@ -1325,18 +1337,97 @@
         state.bolts.push({ x1: a1.x, y1: a1.y, x2: a2.x, y2: a2.y, life: 0, max: 0.22 });
         const sr = R.applyDamage(nearest, Math.max(1, Math.round(dmg * shock.chain.ratio)));
         spawnHitFx(a2.x, a2.y, false, false, '#CDE4FF');
-        if (sr.killed) onBarnacleKilled(nearest, a2.x, a2.y);
+        if (sr.killed) onBarnacleKilled(nearest, a2.x, a2.y, false, k && k.shotId);
       }
     }
 
-    if (res.killed) onBarnacleKilled(b, w.x, w.y, crit); else SFX.hit();
+    // 受击挤压：沿受力方向压扁，垂直方向拉长
+    b.squash = { t: 0, dur: 0.20, ang: Math.atan2(w.y - b.y, w.x - b.x) };
+    if (res.killed) onBarnacleKilled(b, w.x, w.y, crit, k && k.shotId);
+    else { SFX.hit(); if (J) hitStop.hit(0.022, 0.4); }
     updateHud();
     return res;
   }
 
+  // ---- 3. 连击等级：越连越有名字 ----
+  const COMBO_TIERS = [
+    { at: 50, name: '搓澡宗师', color: '#FFD60A' },
+    { at: 30, name: '深海清道夫', color: '#FF9F0A' },
+    { at: 20, name: '评论区拆迁办', color: '#BF5AF2' },
+    { at: 10, name: '藤壶克星', color: '#0A84FF' },
+    { at: 5, name: '手起刀落', color: '#30D158' },
+  ];
+  function comboInfo(n) {
+    for (let i = 0; i < COMBO_TIERS.length; i++) if (n >= COMBO_TIERS[i].at) return COMBO_TIERS[i];
+    return null;
+  }
+  // ---- 10. 连击保护：连得越高，宽限越长（不会一刀没打中就清零）----
+  function comboWindow(n) {
+    return 1.6 + Math.min(1.7, Math.floor(n / 3) * 0.12);
+  }
+  // ---- 4. 一刀多杀：报数 + 清脆的叠音 ----
+  function mkLabel(n) {
+    if (n === 2) return '双杀';
+    if (n === 3) return '三连';
+    if (n === 4) return '四连';
+    if (n === 5) return '五连';
+    if (n <= 8) return n + ' 连';
+    return '藤壶串烧';
+  }
+  // 多杀播报的显示（DOM 元素，每帧只改变化的值，避免无谓重排）
+  let mkLast = '';
+  function refreshMkBadge() {
+    const box = el('mkBadge');
+    if (!box) return;
+    const b = state.mkBadge;
+    if (!b) {
+      if (mkLast !== '') { box.classList.remove('show'); mkLast = ''; }
+      return;
+    }
+    const key = b.n + '|' + Math.round(b.life * 20) + '|' + Math.round(b.pop * 20);
+    if (key === mkLast) return;
+    mkLast = key;
+    const strong = box.children && box.children[0];
+    const em = box.children && box.children[1];
+    if (strong) strong.textContent = '×' + b.n;
+    else box.innerHTML = '<b>×' + b.n + '</b><i>' + mkLabel(b.n) + '</i>';
+    if (em) em.textContent = mkLabel(b.n);
+    box.style.opacity = String(Math.min(1, b.life / 0.32));
+    box.style.transform = 'translateX(-50%) scale(' + (1 + b.pop * 0.2).toFixed(3) + ')';
+    box.classList.add('show');
+  }
+
+  function showMultiKill(n) {
+    state.mkBadge = { n, life: 1.5, pop: 1 };
+    SFX.tick(Math.min(n, 8));            // 清脆的"嗒"，每多杀一只音更高
+  }
+
   // 藤壶被清掉：消失动画 + 掉金币 + 连击
-  function onBarnacleKilled(b, wx, wy, crit) {
-    SFX.kill();
+  function onBarnacleKilled(b, wx, wy, crit, shotId) {
+    // ---- 顿帧 + 方向性震屏：打击感的核心 ----
+    if (J) {
+      const heavy = !!b.elite || (b.maxHp >= 6);
+      hitStop.hit(heavy ? 0.075 : 0.042, heavy ? 0.06 : 0.16);
+      const ang = Math.atan2(wy - state.whale.y, wx - state.whale.x);
+      shake.kick(heavy ? 9 : 5.5, Math.cos(ang), Math.sin(ang));
+    }
+    // ---- 10. 连击（带保护窗口）----
+    state.combo += 1;
+    state.bestCombo = Math.max(state.bestCombo || 0, state.combo);
+    const tier = comboInfo(state.combo);
+    state.comboTimer = comboWindow(state.combo);
+    SFX.kill(state.combo);
+    if (tier && state.combo === tier.at) {
+      spawnFloater(wx, wy - 96, tier.name + '！', tier.color, true);
+      state.flashScreen = Math.max(state.flashScreen, 0.35 * fxScale());
+      state.flashColor = tier.color;
+    }
+    // ---- 4. 一刀多杀 ----
+    if (typeof shotId === 'number' && shotId > 0) {
+      if (state.mkShot === shotId) state.mkCount += 1;
+      else { state.mkShot = shotId; state.mkCount = 1; }
+      if (state.mkCount >= 2) showMultiKill(state.mkCount);
+    }
     // ---- 内容层：图鉴记录 + 遗言 + 掉落物 ----
     if (L && b.typeId) {
       state.killedByType[b.typeId] = (state.killedByType[b.typeId] || 0) + 1;
@@ -1398,6 +1489,8 @@
           x: wx, y: wy,
           vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 240,
           t: 0, spin: Math.random() * 8, big: true, amount: per,
+          // 弧线飞行参数：给一个侧向加速度，金币就会拐着弯飞
+          curve: (Math.random() - 0.5) * 260,
         });
       }
       state.flashScreen = Math.max(state.flashScreen, 0.9 * fxScale());
@@ -1525,11 +1618,14 @@
 
     // water background inside the letterboxed area
     ctx.save();
-    // 屏幕震动：轻微的随机偏移，出手命中时更有打击感
+    // 屏幕震动：两套叠加
+    //   ① 老的随机抖（保留，负责"大"的冲击）
+    //   ② 新的方向性抖（沿受力方向，负责"准"的打击感）
     const sh = state.shake || 0;
-    const shx = sh > 0 ? (Math.random() - 0.5) * sh : 0;
-    const shy = sh > 0 ? (Math.random() - 0.5) * sh : 0;
+    const shx = (sh > 0 ? (Math.random() - 0.5) * sh : 0) + shake.x;
+    const shy = (sh > 0 ? (Math.random() - 0.5) * sh : 0) + shake.y;
     ctx.translate(offX + shx, offY + shy);
+    ctx.rotate(shake.rot);
     ctx.scale(scale, scale);
     ctx.beginPath(); ctx.rect(0, 0, VW, VH); ctx.clip();
 
@@ -1694,8 +1790,10 @@
     ctx.restore();
 
     // ---- 武器站本体（跟着轨道滑）----
+    // 后坐：发射时沿反方向缩一下，弹簧拉回来（跟随动作）
+    const rec = recoil ? recoil.v : 0;
     ctx.save();
-    ctx.translate(gx, RAIL.y);
+    ctx.translate(gx + dir * rec * 9, RAIL.y);
     ctx.fillStyle = 'rgba(6,20,40,0.45)';
     ctx.beginPath(); ctx.ellipse(0, 26, 56, 14, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = P.navyDeep;
@@ -1711,29 +1809,16 @@
     // ---- 武器朝向：始终指向鼠标（玩家控制方向）----
     const aimAng = Math.atan2(state.aim.y - RAIL.y, state.aim.x - gx);
     ctx.save();
-    ctx.translate(gx, RAIL.y - 4);
+    ctx.translate(gx + dir * rec * 11, RAIL.y - 4 + (muzzlePop ? muzzlePop.v * 2 : 0));
     ctx.globalAlpha = ready ? 1 : 0.45;
     ctx.rotate(aimAng);
+    // 炮口方向再缩一点
+    if (rec) ctx.translate(-rec * L * 0.06, 0);
     ctx.shadowColor = pvCol;
     ctx.shadowBlur = ready && PERF.budget > 0.6 ? 18 : 0;
-    if (isSwordNow) {
-      const grad = ctx.createLinearGradient(0, -L * 0.12, 0, L * 0.12);
-      grad.addColorStop(0, '#FFFFFF');
-      grad.addColorStop(0.5, pvCol);
-      grad.addColorStop(1, '#8E9BB0');
-      ctx.beginPath();
-      ctx.moveTo(-L * 0.06, -L * 0.075);
-      ctx.lineTo(L * 0.82, -L * 0.05);
-      ctx.lineTo(L * 1.0, 0);
-      ctx.lineTo(L * 0.82, L * 0.05);
-      ctx.lineTo(-L * 0.06, L * 0.075);
-      ctx.closePath();
-      ctx.fillStyle = grad; ctx.fill();
-      ctx.strokeStyle = 'rgba(20,30,50,0.55)'; ctx.lineWidth = 1.6; ctx.stroke();
-      ctx.fillStyle = P.gold;
-      ctx.beginPath(); ctx.roundRect(-L * 0.08, -L * 0.16, L * 0.06, L * 0.32, 3); ctx.fill();
-      ctx.fillStyle = '#43325A';
-      ctx.beginPath(); ctx.roundRect(-L * 0.40, -L * 0.05, L * 0.32, L * 0.10, 4); ctx.fill();
+    // ---- 台上这把武器：用武器美术模块（和飞行物、商店图标一致）----
+    if (WA && WA.draw) {
+      WA.draw(ctx, st.knife && st.knife.id, { len: L });
     } else {
       ctx.beginPath();
       ctx.moveTo(-L * 0.12, -L * 0.15);
@@ -2276,6 +2361,17 @@
     const t = state.time;
     const col = GLOW.rainbow(t, 90, 0);
     const gx = railX();
+    // ---- 武器台本体（新美术）----
+    if (GA && GA.launcher) {
+      const gun = gunPos();
+      g.save();
+      g.translate(gx, RAIL.y + 2);
+      GA.launcher(g, {
+        w: 76, h: 56, time: t, color: col,
+        dir: Math.atan2(state.aim.y - gun.y, state.aim.x - gun.x),
+      });
+      g.restore();
+    }
     // 发射台光晕（用叠加圆代替 shadowBlur，省很多）
     g.save();
     g.globalCompositeOperation = 'lighter';
@@ -2482,7 +2578,20 @@
       shootSword() { tone(240, 0.22, 'sawtooth', 0.16, 900); noise(0.14, 0.22, 1600); },
       shootHoly() { tone(320, 0.30, 'triangle', 0.18, 1400); tone(640, 0.26, 'sine', 0.12, 1800); noise(0.16, 0.20, 2000); },
       hit() { noise(0.05, 0.22, 400); tone(180, 0.05, 'square', 0.10); },
-      kill() { tone(660, 0.07, 'square', 0.16, 990); noise(0.09, 0.26, 700); },
+      // 3. 连击音高阶梯：连得越高音越亮（每 2 连升一个半音，最多升 12 个）
+      kill(combo) {
+        const semi = Math.min(12, Math.floor((combo || 1) / 2));
+        const p = Math.pow(2, semi / 12);
+        tone(660 * p, 0.07, 'square', 0.15, 990 * p);
+        noise(0.09, 0.24, 700 * p);
+      },
+      // 4. 清脆的"嗒"：短、亮、快收 —— 多杀叠音用
+      tick(n) {
+        const k = Math.pow(1.13, Math.min(7, Math.max(0, (n || 1) - 1)));
+        const f = 1750 * k;
+        tone(f, 0.028, 'triangle', 0.20, f * 0.55);
+        noise(0.016, 0.10, f * 1.5);
+      },
       coin() { tone(1180, 0.06, 'sine', 0.14); tone(1560, 0.07, 'sine', 0.11); },
       buy() { tone(520, 0.08, 'triangle', 0.16); tone(780, 0.10, 'triangle', 0.14); },
       fail() { tone(220, 0.5, 'sawtooth', 0.16, 90); },
@@ -2501,6 +2610,15 @@
 
   // ------------------------------------------------------------------ 存档
   const Save = window.WhaleSave || null;
+  const WA = window.WhaleWeapons || null;    // 武器美术模块
+  const GA = window.WhaleGameArt || null;    // 游戏内美术模块
+  const J = window.WhaleJuice || null;       // 动画系统
+  // 顿帧 / 震屏 / 后坐 / 鲸鱼呼吸 —— 没有 juice.js 时全部退化成"不生效"，不影响游戏
+  const hitStop = J ? new J.HitStop() : { hit() {}, step: (dt) => dt, active: () => false, scale: 1 };
+  const shake = J ? new J.Shake() : { kick() {}, step() {}, x: 0, y: 0, rot: 0, amp: 0 };
+  const whaleBreath = J ? new J.Spring(1, { stiffness: 26, damping: 9 }) : null;
+  const recoil = J ? new J.Spring(0, { stiffness: 240, damping: 14 }) : null;
+  const muzzlePop = J ? new J.Spring(0, { stiffness: 300, damping: 16 }) : null;
   function snapshot() {
     return {
       coins: state.coins,
@@ -2520,6 +2638,7 @@
       gameCleared: !!state.gameCleared,
       gachaPity: state.gachaPity || 0,
       inputMode: state.inputMode === 'touch' ? 'touch' : 'pc',
+      material: MATS.indexOf(state.material) >= 0 ? state.material : 'solid',
     };
   }
   function persist(label) {
@@ -2551,6 +2670,8 @@
     state.gameCleared = !!data.gameCleared;
     state.gachaPity = data.gachaPity || 0;
     state.inputMode = data.inputMode === 'touch' ? 'touch' : 'pc';
+    state.material = (data.material === 'glass' || data.material === 'liquid') ? data.material : 'solid';
+    if (typeof applyMaterial === 'function') applyMaterial();   // 读档后要把材质套到界面上
     state.endless = !!data.gameCleared;
     state.fx = (Save && Save.normFx) ? Save.normFx(data.fx) : (FX_LEVELS.indexOf(data.fx) >= 0 ? data.fx : 'max');
     updateHud();
@@ -2558,12 +2679,78 @@
 
   // ------------------------------------------------------------------ HUD + shop (DOM)
   const el = (id) => document.getElementById(id);
+  // 金币数字滚动：不是瞬间跳到目标值，而是快速滚上去（更"丝滑"）
+  const coinAnim = { el: null, shown: 0, target: 0, last: 0 };
+  function rollCoins(target, node) {
+    const box = node || el('coins');
+    if (!box) return;
+    coinAnim.el = box;
+    coinAnim.target = Math.max(0, Math.round(target));
+    if (coinAnim.shown === 0 && coinAnim.target > 0) coinAnim.shown = 0;
+  }
+  function stepCoinRoll(dt) {
+    const box = coinAnim.el;
+    if (!box) return;
+    const gap = coinAnim.target - coinAnim.shown;
+    if (Math.abs(gap) < 0.6) {
+      if (coinAnim.shown !== coinAnim.target) {
+        coinAnim.shown = coinAnim.target;
+        box.textContent = String(coinAnim.target);
+      }
+      return;
+    }
+    // 指数逼近：一开始快，末尾慢，像 iOS 的滚数字
+    coinAnim.shown += gap * Math.min(1, dt * 11);
+    // 滚动中给个轻微的放大，停下来就收回
+    box.textContent = String(Math.round(coinAnim.shown));
+  }
+
   function updateHud() {
     el('coins').textContent = state.coins;
     el('round').textContent = state.round;
+    rollCoins(state.coins, el('coins'));
     el('left').textContent = R.remainingBarnacles(state.barnacles);
     el('knifeName').textContent = R.knifeById(state.knifeId).name;
     el('combo').textContent = state.combo > 1 ? ('x' + state.combo) : '';
+    // 3. 连击等级名字
+    const tier = comboInfo(state.combo);
+    const tierEl = el('comboTier');
+    if (tierEl) {
+      if (tier) {
+        tierEl.textContent = tier.name;
+        tierEl.style.color = tier.color;
+        tierEl.style.display = '';
+      } else {
+        tierEl.textContent = '';
+        tierEl.style.display = 'none';
+      }
+    }
+    // 6. 破坏力：变了就弹一下，并飘出涨幅
+    const pw = R.powerOf(state);
+    const pwEl = el('power');
+    if (pwEl) pwEl.textContent = pw;
+    const dEl = el('powerDelta');
+    if (state._powerPrev === undefined) state._powerPrev = pw;
+    if (pw !== state._powerPrev) {
+      const pct = Math.round((pw / Math.max(1, state._powerPrev) - 1) * 100);
+      state._powerPrev = pw;
+      if (pct > 0) {
+        state.powerPop = 1;
+        state.powerDelta = pct;
+      }
+    }
+    const pwWrap = el('powerPill');
+    if (pwWrap) {
+      pwWrap.classList.toggle('bump', state.powerPop > 0);
+      if (dEl) {
+        if (state.powerPop > 0 && state.powerDelta > 0) {
+          dEl.textContent = '+' + state.powerDelta + '%';
+          dEl.style.display = '';
+        } else {
+          dEl.style.display = 'none';
+        }
+      }
+    }
     const fill = el('airFill');
     if (fill) {
       const frac = state.maxAir > 0 ? Math.max(0, state.air / state.maxAir) : 0;
@@ -2592,6 +2779,7 @@
         if (b && b.classList && b.dataset) b.classList.toggle('on', b.dataset.btab === tab);
       }
     }
+    moveSeg(bar);
     let html = '';
     if (tab === 'weapon') {
       const ownIdx = R.ownedKnifeIndex(state);
@@ -2697,6 +2885,7 @@
         renderBag();
         const body = el('bagBody');
         if (body) body.scrollTop = 0;
+        moveSeg(el('bagTabs'));
       };
     }
   }
@@ -2831,7 +3020,12 @@
     let html = '';
     if (tab === 'types') {
       const got = L.TYPES.filter(owned).length;
-      html += '<p class="codexsum">藤壶图鉴 · 已收录 <b>' + got + ' / ' + L.TYPES.length + '</b></p><div class="codexgrid">';
+      const leftN = L.TYPES.length - got;
+      html += '<p class="codexsum">藤壶图鉴 · 已收录 <b>' + got + ' / ' + L.TYPES.length + '</b>' +
+        (leftN > 0
+          ? '<span class="codexleft">还差 <b>' + leftN + '</b> 种集齐</span>'
+          : '<span class="codexdone">已全部收录 🏆</span>') +
+        '</p><div class="codexgrid">';
       for (const t of L.TYPES) {
         const c = state.killedByType[t.id] || 0;
         const seen = c > 0;
@@ -2911,8 +3105,11 @@
   }
   function closeCodex() {
     el('codex').classList.remove('show');
-    // 从商店打开就回商店，从标题打开就回标题
-    state.phase = state.codexFrom === 'shop' ? 'shop' : 'title';
+    // 从哪来回哪去。
+    // 注意：从游戏中途打开的也要回 play（回合数据都还在，只是暂停了），
+    // 不能一律回标题页 —— 那等于把玩家这一局弄丢了。
+    const from = state.codexFrom;
+    state.phase = (from === 'play' || from === 'shop') ? from : 'title';
   }
 
   // ---------------------------------------------------------------- 战绩图
@@ -3149,6 +3346,94 @@
     openShop();
   }
 
+  // ---- 材质：实心 / 毛玻璃 / 液态玻璃 ----
+  const MATS = ['solid', 'glass', 'liquid'];
+  const MAT_NAME = { solid: '实心', glass: '毛玻璃', liquid: '液态玻璃' };
+  const MAT_TIP = {
+    solid: '实心：最清楚、最省性能',
+    glass: '毛玻璃：背景虚化，面板半透明',
+    liquid: '液态玻璃：边缘折射高光 + 缓慢流光',
+  };
+  // 浏览器支不支持 backdrop-filter（不支持就别让用户开，否则会糊成一团）
+  let glassSupported = false;
+  try {
+    glassSupported = !!(window.CSS && window.CSS.supports &&
+      (window.CSS.supports('backdrop-filter', 'blur(4px)') ||
+        window.CSS.supports('-webkit-backdrop-filter', 'blur(4px)')));
+  } catch (e) { glassSupported = false; }
+
+  // 能不能用 SVG 滤镜做折射？
+  // Chrome 支持 backdrop-filter: url(#f)；Firefox / Safari 不支持，会自动落到普通模糊
+  let refractSupported = false;
+  try {
+    refractSupported = !!(window.CSS && window.CSS.supports &&
+      (window.CSS.supports('backdrop-filter', 'url(#x) blur(2px)') ||
+        window.CSS.supports('-webkit-backdrop-filter', 'url(#x) blur(2px)')));
+  } catch (e) { refractSupported = false; }
+
+  function applyMaterial() {
+    let m = MATS.indexOf(state.material) >= 0 ? state.material : 'solid';
+    if (!glassSupported) m = 'solid';               // 不支持就回落
+    state.material = m;
+    const b = document.body;
+    if (b && b.classList) {
+      b.classList.toggle('mat-glass', m === 'glass');
+      b.classList.toggle('mat-liquid', m === 'liquid');
+      // 低性能时不再用玻璃（用户的选择留着，性能回来了自动恢复）
+      // 阈值必须和帧循环里那个 0.7 一致，否则会每 90 帧反复重新应用
+      b.classList.toggle('no-glass', PERF.budget <= 0.7);
+      // 折射是液态玻璃的灵魂，但 feDisplacementMap 很吃性能：
+      // 只在「浏览器支持 + 性能没降级」时才开
+      b.classList.toggle('lg-refract', m === 'liquid' && refractSupported && PERF.budget > 0.7);
+    }
+    const icon = el('btnMat');
+    if (icon) {
+      icon.textContent = m === 'liquid' ? '🫧' : m === 'glass' ? '🧊' : '⬛';
+      icon.title = glassSupported
+        ? '材质：' + MAT_NAME[m] + '（点击切换）· ' + MAT_TIP[m]
+        : '你的浏览器不支持毛玻璃，只能用实心';
+    }
+    for (const pair of MAT_BTN) {
+      const btn = el(pair[0]);
+      if (!btn) continue;
+      const mine = pair[1];
+      btn.classList.toggle('on', mine === m);
+      btn.disabled = !glassSupported && mine !== 'solid';
+      if (btn.style) btn.style.opacity = btn.disabled ? 0.4 : '';
+    }
+    const info = el('matInfo');
+    if (info) {
+      info.textContent = glassSupported
+        ? MAT_TIP[m]
+        : '当前浏览器不支持毛玻璃，已固定为实心';
+      if (glassSupported && m === 'liquid') {
+        info.textContent = refractSupported
+          ? '液态玻璃：折射 + 边缘高光 + 流光'
+          : '液态玻璃：当前浏览器不支持折射，用普通模糊代替';
+      }
+    }
+  }
+  function setMaterial(m) {
+    state.material = MATS.indexOf(m) >= 0 ? m : 'solid';
+    applyMaterial();
+    persist('材质');
+  }
+  function cycleMaterial() {
+    const i = MATS.indexOf(state.material);
+    setMaterial(MATS[(i + 1) % MATS.length]);
+  }
+  // 三档按钮 ↔ 材质 的映射（放在代码里，不去写 dataset：
+  // 浏览器里 element.dataset 只有 getter，严格模式下赋值会抛 TypeError）
+  const MAT_BTN = [['btnMat1', 'solid'], ['btnMat2', 'glass'], ['btnMat3', 'liquid']];
+  function bindMaterial() {
+    const bmIcon = el('btnMat');
+    if (bmIcon) bmIcon.onclick = cycleMaterial;
+    for (const pair of MAT_BTN) {
+      const btn = el(pair[0]);
+      if (btn) btn.onclick = () => setMaterial(pair[1]);
+    }
+  }
+
   // ---- 商店页签：热搜 / 抽卡 / 武器 / 特质 / 道具 ----
   const SHOP_TABS = ['trend', 'gacha', 'knife', 'perk', 'up'];
   function applyShopTab() {
@@ -3165,8 +3450,24 @@
       }
     }
     if (scroll) scroll.scrollTop = 0;
+    moveSeg(bar);
   }
   function setShopTab(t) { state.shopTab = t; applyShopTab(); }
+  // 让分段控件的滑块滑到当前页签（iOS 的分段控件效果）
+  function moveSeg(bar) {
+    if (!bar || !bar.style || typeof bar.style.setProperty !== 'function') return;
+    if (!bar.querySelectorAll) return;
+    const btns = bar.querySelectorAll('.stab');
+    let active = null;
+    for (let i = 0; i < btns.length; i++) {
+      const b = btns[i];
+      if (b && b.classList && b.classList.contains('on')) { active = b; break; }
+    }
+    if (!active || typeof active.offsetLeft !== 'number' || typeof active.offsetWidth !== 'number') return;
+    // 容器有 3px 内边距，所以滑块左移 3px
+    bar.style.setProperty('--seg-x', (active.offsetLeft - 3) + 'px');
+    bar.style.setProperty('--seg-w', active.offsetWidth + 'px');
+  }
   function bindShopTabs() {
     const bar = el('shopTabs');
     if (!bar || !bar.querySelectorAll) return;
@@ -3175,6 +3476,7 @@
       const b = btns[i];
       if (!b || !b.dataset) continue;
       b.onclick = () => setShopTab(b.dataset.stab);
+      moveSeg(bar);
     }
   }
 
@@ -3211,7 +3513,19 @@
     const sc = el('shopScroll');
     if (sc) sc.scrollTop = 0;
   }
-  function closeShop() { el('shop').classList.remove('show'); }
+  // 关闭弹层：先播一下退场动画再真正隐藏
+  function hideOverlay(id) {
+    const box = el(id);
+    if (!box) return;
+    box.classList.add('closing');
+    const done = () => {
+      box.classList.remove('closing');
+      box.classList.remove('show');
+    };
+    if (typeof setTimeout === 'function') setTimeout(done, 170);
+    else done();
+  }
+  function closeShop() { hideOverlay('shop'); }
 
   // 剧情弹窗：显示 / 关闭
   function openStory(round) {
@@ -3357,6 +3671,10 @@
   function drawKnifeIcon(cv, knife) {
     const g = cv.getContext('2d');
     g.clearRect(0, 0, cv.width, cv.height);
+    // 交给武器美术模块：每把武器形态都不一样
+    if (WA && WA.drawIcon) {
+      try { WA.drawIcon(g, knife, cv.width, cv.height); return; } catch (e) { /* 回退到旧画法 */ }
+    }
     const isSword = (knife.kind || 'throw') === 'thrust';
     g.save();
     g.translate(cv.width / 2, cv.height / 2);
@@ -3413,6 +3731,8 @@
     resize();
     window.addEventListener('resize', resize);
     bindShopTabs();
+    bindMaterial();
+    applyMaterial();
     bindBagTabs();
 
     // 标题页的头像：用新角色图
@@ -3561,6 +3881,11 @@
       el('title').classList.remove('show');
       SFX.unlock();
       state.combo = 0;
+    state.bestCombo = 0;
+    state.mkBadge = null;
+    state.mkShot = -1; state.mkCount = 0;
+    state.powerPop = 0; state.powerDelta = 0;
+    state._powerPrev = undefined;
       state.perks = state.perks || [];
       updateHud();
       startRound(fromRound || 1);
@@ -3710,6 +4035,7 @@
 
     updateHud();
     let last = performance.now();
+    let pausedDrawn = false;
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000);
       const frameMs = now - last;
@@ -3721,9 +4047,26 @@
         || state.phase === 'story' || state.phase === 'codex' || state.phase === 'report'
         || state.phase === 'bag'
         || (rot && rot.classList.contains('show'));
-      if (!paused) update(dt);
+      // 顿帧：命中那一下把时间压慢，冲击感立刻上一个档次
+      const sdt = hitStop.step(dt);
+      if (!paused) update(sdt);
       else state.time += dt;
-      draw();
+      shake.step(dt);
+      if (J) {
+        if (whaleBreath) whaleBreath.step(dt);
+        if (recoil) recoil.step(dt);
+        if (muzzlePop) muzzlePop.step(dt);
+      }
+      // ★ 性能：暂停时不再重画游戏画面。
+      // 弹层是全屏的，画面变化根本看不见，但每帧重画要烧掉整帧的渲染 + 毛玻璃合成。
+      // 只在「刚进入暂停」时画一帧留作背景。
+      if (!paused) {
+        draw();
+        pausedDrawn = false;
+      } else if (!pausedDrawn) {
+        draw();
+        pausedDrawn = true;
+      }
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);

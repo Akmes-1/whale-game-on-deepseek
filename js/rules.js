@@ -231,6 +231,18 @@
     return placed;
   }
 
+  // ---- 破坏力：把伤害/冷却/范围/贯穿/暴击/特质揉成一个直观数字（6）----
+  function powerOf(state) {
+    const s = effectiveStats(state);
+    const dps = s.damage / Math.max(0.05, s.cooldown);
+    const area = 1 + Math.max(0, s.radius - 13) / 26;                    // 范围越大越强
+    const pierceN = s.kind === 'thrust' ? (s.pierce >= 99 ? 6 : Math.max(0, s.pierce)) : 0;
+    const pierce = 1 + pierceN * 0.4;                                    // 贯穿很值钱
+    const crit = 1 + s.critChance * (s.critMult - 1);
+    const perks = 1 + (state.perks || []).length * 0.09;
+    return Math.max(1, Math.round(dps * area * pierce * crit * perks * 12));
+  }
+
   // ---- shop helpers ----
   function knifeById(id) { return KNIVES.find(k => k.id === id) || KNIVES[0]; }
   function upgradeById(id) { return UPGRADES.find(u => u.id === id) || null; }
@@ -337,7 +349,7 @@
     makeRng, KNIVES, UPGRADES, BARNACLE_KINDS, WHALE_TINTS,
     barnacleCountForRound, hpScaleForRound, airForRound, roundConfig, scatterBarnacles,
     knifeById, upgradeById, effectiveStats, applyDamage, canAfford,
-    purchase, ownedKnifeIndex, ownsKnife, equipKnife, activePerk, equippedPerks, PERKS, perkById,
+    purchase, ownedKnifeIndex, ownsKnife, equipKnife, powerOf, effectiveStats, activePerk, equippedPerks, PERKS, perkById,
     pierceTargets, pierceDamage, SAVE_VERSION,
     buyKnife, buyUpgrade, upgradeCost, remainingBarnacles, clearBonus,
   };
