@@ -30,6 +30,7 @@
       killedByType: {}, // 藤壶图鉴
       achievements: [], // 已解锁成就
       bestScore: 0,     // 本机最高分
+      inputMode: 'pc',  // 操作模式：'pc' 鼠标 / 'touch' 手机
       savedAt: 0,
     };
   }
@@ -80,6 +81,7 @@
       killedByType: (parsed.killedByType && typeof parsed.killedByType === 'object') ? parsed.killedByType : {},
       achievements: Array.isArray(parsed.achievements) ? parsed.achievements.slice(0, 60) : [],
       bestScore: Math.max(0, Number(parsed.bestScore) || 0),
+      inputMode: parsed.inputMode === 'touch' ? 'touch' : 'pc',
       savedAt: Number(parsed.savedAt) || 0,
     };
     return { ok: true, reason: 'loaded', data };
@@ -103,6 +105,7 @@
       killedByType: data.killedByType || {},
       achievements: Array.isArray(data.achievements) ? data.achievements.slice(0, 60) : [],
       bestScore: Math.max(0, Math.round(data.bestScore || 0)),
+      inputMode: data.inputMode === 'touch' ? 'touch' : 'pc',
       savedAt: Date.now(),
     };
     try {

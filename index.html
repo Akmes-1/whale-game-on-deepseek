@@ -27,6 +27,7 @@
       </div>
       <div class="coinbox"><span class="coin">🪙</span><b id="coins">0</b></div>
       <button id="btnDev" class="icobtn hidden" title="开发者控制台（只在 ?dev=1 时出现）">🛠</button>
+      <button id="btnMode" class="icobtn" title="操作模式：PC / 手机">🖱</button>
       <button id="btnFx" class="icobtn" title="光污染模式：点击切换 关闭 / 标准 / 拉满">✨</button>
       <button id="btnSound" class="icobtn" title="音效开关">🔇</button>
     </div>
@@ -67,6 +68,12 @@
         <button id="btnCodexTitle" class="fxbtn">📖 图鉴</button>
         <button id="btnAchvTitle" class="fxbtn">🏆 成就</button>
         <span id="bestInfo" class="fxnow">本机最高分：0</span>
+      </div>
+      <div class="fxrow">
+        <span class="fxlab">操作模式</span>
+        <button id="btnModePc" class="fxbtn on" data-mode="pc">🖱 电脑</button>
+        <button id="btnModeTouch" class="fxbtn" data-mode="touch">👆 手机</button>
+        <span id="modeInfo" class="fxnow">电脑：鼠标指向哪就朝哪打</span>
       </div>
       <button id="btnContinue" class="primary hidden">继续上次的进度</button>
       <button id="btnStart" class="primary">开始救援</button>
@@ -117,6 +124,16 @@
       <div class="endingstats" id="endingStats"></div>
       <p class="endingunlock" id="endingUnlock"></p>
       <button id="btnEnding" class="primary">继续 →</button>
+    </div>
+  </div>
+
+  <!-- 横屏提示（手机模式 + 竖屏时显示） -->
+  <div id="rotate">
+    <div class="rotbox">
+      <div class="roticon">📱</div>
+      <h2>请把手机横过来</h2>
+      <p>这游戏是横屏的，竖着看画面会很小。</p>
+      <p class="rotalt">如果你的手机锁了旋转，先在设置里关掉「方向锁定」。</p>
     </div>
   </div>
 

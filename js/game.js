@@ -81,6 +81,7 @@
     gameCleared: false,    // 是否通关过一次（解锁无尽模式）
     endless: false,        // 无尽模式中
     gachaLog: [],          // 最近抽卡结果
+    inputMode: 'pc',       // 操作模式：'pc' 鼠标 / 'touch' 手机
     run: null,             // 本局统计
     barnacles: [],
     knives: [],            // in-flight projectiles
@@ -222,18 +223,43 @@
     const x = (clientX - rect.left) * dpr, y = (clientY - rect.top) * dpr;
     return { x: (x - offX) / scale, y: (y - offY) / scale };
   }
+  // 手机模式下"正在拖动瞄准"（松手才发射）
+  let dragging = false;
+  const isTouchMode = () => state.inputMode === 'touch';
+  // 真的触摸事件也按手机逻辑走，避免用户忘了切模式
+  const treatAsTouch = (e) => isTouchMode() || e.pointerType === 'touch';
+
   canvas.addEventListener('pointermove', (e) => {
     const p = toVirtual(e.clientX, e.clientY);
     state.aim.x = p.x; state.aim.y = p.y; state.aim.inside = true;
   });
-  canvas.addEventListener('pointerleave', () => { state.aim.inside = false; });
+  canvas.addEventListener('pointerleave', () => {
+    // 手机模式下手指抬起不该让准星消失（不然拖到一半线就断了）
+    if (!isTouchMode()) state.aim.inside = false;
+  });
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const p = toVirtual(e.clientX, e.clientY);
     state.aim.x = p.x; state.aim.y = p.y; state.aim.inside = true;
-    // 鼠标只决定「朝向」：从武器当前位置指向鼠标的那条射线
+    if (treatAsTouch(e)) {
+      // 手机：先瞄准，松手再发射 —— 这样能先把方向线对准了再打
+      dragging = true;
+      try { if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+      return;
+    }
+    // 电脑：鼠标只决定「朝向」，按下即发射
     throwKnife(p.x, p.y);
   });
+  // 松手发射（手指拖出画布也能收到，靠 pointer capture）
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const p = toVirtual(e.clientX, e.clientY);
+    state.aim.x = p.x; state.aim.y = p.y; state.aim.inside = true;
+    throwKnife(p.x, p.y);
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', () => { dragging = false; });
 
   // 甩掉旧的扫动辅助（现在位置由轨道自动决定，鼠标只给方向）
   function aimPoint() {
@@ -2438,6 +2464,7 @@
       bestScore: state.bestScore || 0,
       gameCleared: !!state.gameCleared,
       gachaPity: state.gachaPity || 0,
+      inputMode: state.inputMode === 'touch' ? 'touch' : 'pc',
     };
   }
   function persist(label) {
@@ -2466,6 +2493,7 @@
     state.bestScore = data.bestScore || 0;
     state.gameCleared = !!data.gameCleared;
     state.gachaPity = data.gachaPity || 0;
+    state.inputMode = data.inputMode === 'touch' ? 'touch' : 'pc';
     state.endless = !!data.gameCleared;
     state.fx = (Save && Save.normFx) ? Save.normFx(data.fx) : (FX_LEVELS.indexOf(data.fx) >= 0 ? data.fx : 'max');
     updateHud();
@@ -3047,6 +3075,11 @@
     if (portrait) portrait.src = A.avatarSrc;
 
     // ---- 存档：读出来，决定标题页显示"继续"还是"开始新游戏" ----
+    // 没存档时：触摸设备默认给手机模式（用户随时能切回来）
+    const coarse = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+      || ('ontouchstart' in window);
+    if (coarse) state.inputMode = 'touch';
+
     const loaded = Save ? Save.load() : { ok: false, data: null };
     const saveInfo = el('saveInfo');
     const btnContinue = el('btnContinue');
@@ -3091,6 +3124,51 @@
         btnDev.onclick = () => { window.open('dev.html', '_blank'); };
       }
     }
+
+    // ---- 操作模式：PC / 手机 ----
+    const MODE_NAME = { pc: '电脑', touch: '手机' };
+    const MODE_TIP = {
+      pc: '电脑：鼠标指向哪就朝哪打，按下即发射',
+      touch: '手机：拖动瞄准，松手发射（按钮也放大了）',
+    };
+    function applyMode() {
+      const t = state.inputMode === 'touch';
+      if (document.body && document.body.classList) document.body.classList.toggle('mode-touch', t);
+      const b = el('btnMode');
+      if (b) {
+        b.textContent = t ? '👆' : '🖱';
+        b.title = '当前：' + MODE_NAME[state.inputMode] + '模式（点击切换）· ' + MODE_TIP[state.inputMode];
+      }
+      const info = el('modeInfo');
+      if (info) info.textContent = MODE_TIP[state.inputMode];
+      for (const [id, mode] of [['btnModePc', 'pc'], ['btnModeTouch', 'touch']]) {
+        const btn = el(id);
+        if (btn) btn.classList.toggle('on', state.inputMode === mode);
+      }
+      checkRotate();
+    }
+    function setMode(m) {
+      state.inputMode = (m === 'touch') ? 'touch' : 'pc';
+      applyMode();
+      persist('操作模式');
+    }
+    const bm = el('btnMode');
+    if (bm) bm.onclick = () => setMode(state.inputMode === 'touch' ? 'pc' : 'touch');
+    const bp = el('btnModePc'); if (bp) bp.onclick = () => setMode('pc');
+    const bt = el('btnModeTouch'); if (bt) bt.onclick = () => setMode('touch');
+
+    // ---- 竖屏提示（只有手机模式才管）----
+    function checkRotate() {
+      const box = el('rotate');
+      if (!box) return;
+      const portrait = window.innerHeight > window.innerWidth;
+      const small = Math.min(window.innerWidth, window.innerHeight) < 820;
+      box.classList.toggle('show', state.inputMode === 'touch' && portrait && small);
+    }
+    window.addEventListener('resize', checkRotate);
+    window.addEventListener('orientationchange', () => setTimeout(checkRotate, 120));
+    checkRotate();
+    applyMode();
 
     // 光污染开关：关闭 → 标准 → 拉满 → 关闭…
     const btnFx = el('btnFx');
@@ -3282,8 +3360,10 @@
       last = now;
       noteFrameTime(frameMs);          // 自适应降级：卡了自动减特效
       // 图鉴 / 战绩图 / 剧情弹窗打开时也要暂停游戏，否则氧气会在后台偷偷掉
+      const rot = el('rotate');
       const paused = state.phase === 'title' || state.phase === 'shop'
-        || state.phase === 'story' || state.phase === 'codex' || state.phase === 'report';
+        || state.phase === 'story' || state.phase === 'codex' || state.phase === 'report'
+        || (rot && rot.classList.contains('show'));
       if (!paused) update(dt);
       else state.time += dt;
       draw();
